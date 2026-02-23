@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Button, Input, Static, Switch
 
 from liscribe.config import load_config, save_config
@@ -21,25 +21,26 @@ class PrefsTranscriptsScreen(BackScreen):
 
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Transcripts")
-            yield Static("")
-            save_input = Input(value=folder, id="save-input", placeholder="~/transcripts", classes="text-input")
-            save_input.border_title = "Default save path"
-            save_input.border_subtitle = "Recordings and transcripts"
-            with Horizontal(classes="top-container"):
-                yield save_input
-            yield Static("")
-            here_switch = Switch(value=use_here_default, id="here-default-switch", classes="switch-input")
-            here_switch.border_title = "Use --here by default"
-            here_switch.border_subtitle = "Record saves to ./docs/transcripts from current directory"
-            with Horizontal(classes="top-container"):
-                yield here_switch
-            yield Static("")
-            open_app_input = Input(value=open_app, id="open-app-input", placeholder="cursor", classes="text-input")
-            open_app_input.border_title = "Open transcript app"
-            open_app_input.border_subtitle = "e.g. cursor, code, code -r, default"
-            with Horizontal(classes="top-container"):
-                yield open_app_input
-            yield Static("")
+            with ScrollableContainer(classes="scroll-fill"):
+                yield Static("")
+                save_input = Input(value=folder, id="save-input", placeholder="~/transcripts", classes="text-input")
+                save_input.border_title = "Default save path"
+                save_input.border_subtitle = "Recordings and transcripts"
+                with Horizontal(classes="top-container"):
+                    yield save_input
+                yield Static("")
+                here_switch = Switch(value=use_here_default, id="here-default-switch", classes="switch-input")
+                here_switch.border_title = "Use --here by default"
+                here_switch.border_subtitle = "Record saves to ./docs/transcripts from current directory"
+                with Horizontal(classes="top-container"):
+                    yield here_switch
+                yield Static("")
+                open_app_input = Input(value=open_app, id="open-app-input", placeholder="cursor", classes="text-input")
+                open_app_input.border_title = "Open transcript app"
+                open_app_input.border_subtitle = "e.g. cursor, code, code -r, default"
+                with Horizontal(classes="top-container"):
+                    yield open_app_input
+                yield Static("")
             with Horizontal(classes="footer-container"):
                 yield Button("Save", id="btn-save", classes="btn btn-primary")
                 yield Static("", classes="spacer-x")
