@@ -22,14 +22,14 @@ class PrefsDependenciesScreen(BackScreen):
     def compose(self):
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Dependencies")
-            with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer-y")
-                with ScrollableContainer(id="deps-container", classes="scroll-fill"):
-                    pass  # filled in on_mount
-                yield Static("", classes="margin-small")
+            yield Static("")
+            with ScrollableContainer(id="deps-container", classes="scroll-fill"):
+                pass  # filled in on_mount
+            yield Static("")
             with Horizontal(classes="footer-container"):
-                yield Button("^c Back to Preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
+                yield Button("Back", id="btn-back", classes="btn btn-secondary")
+
 
     def on_mount(self) -> None:
         self._refresh()
@@ -46,14 +46,16 @@ class PrefsDependenciesScreen(BackScreen):
                 row = Horizontal(
                     Static(line, shrink=True),
                     Button("Download", id=f"install-{name}", classes="btn btn-primary btn-inline"),
+                    classes="strip",
                 )
             elif ok and get_remove_command(name):
                 row = Horizontal(
                     Static(line, shrink=True),
                     Button("Remove", id=f"remove-{name}", classes="btn btn-danger btn-inline"),
+                    classes="strip",
                 )
             else:
-                row = Horizontal(Static(line, shrink=True))
+                row = Horizontal(Static(line, shrink=True), classes="strip")
             container.mount(row)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
