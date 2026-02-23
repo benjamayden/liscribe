@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
@@ -38,29 +38,28 @@ class PrefsWhisperScreen(BackScreen):
 
     def compose(self):
         cfg = load_config()
+        lang = cfg.get("language", "en") or "en"
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Whisper")
-            with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer-y")
-                with Vertical(classes="prefs-language-row"):
-                    yield Static("Language (e.g. en, fr, auto):")
-                    yield Input(
-                        value=cfg.get("language", "en") or "en",
-                        id="language-input",
-                    )
-                yield Static("Models:")
-                yield Static("", classes="margin-small")
-                with Horizontal(classes="model-row model-header-row"):
+            with ScrollableContainer(classes="scroll-fill"):
+                yield Static("")
+                language_input = Input(value=lang, id="language-input", placeholder="en", classes="text-input")
+                language_input.border_title = "Language"
+                language_input.border_subtitle = "e.g. en, fr, auto"
+                with Horizontal(classes="top-container"):
+                    yield language_input
+                yield Static("")
+                with Horizontal(classes="strip"):
                     yield Static("", classes="model-col-mark")
                     yield Static("Model", classes="model-col-model")
                     yield Static("Action", classes="model-col-action")
-                with Vertical(id="model-list"):
+                with Vertical(id="model-list",classes="hug-container"):
                     pass
-                yield Static("", classes="margin-small")
+                yield Static("")
             with Horizontal(classes="footer-container"):
-                yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("Save", id="btn-save", classes="btn btn-primary")
                 yield Static("", classes="spacer-x")
-                yield Button("Save", id="btn-save-lang", classes="btn btn-primary btn-inline hug-row")
+                yield Button("Back", id="btn-back", classes="btn btn-secondary")
 
 
     def on_mount(self) -> None:
@@ -76,20 +75,23 @@ class PrefsWhisperScreen(BackScreen):
             downloaded_mark = "✓" if installed else "✘"
             default_mark = " ♥︎" if current else ""
 
-            row = Horizontal(
-                Static(downloaded_mark, classes="model-col-mark"),
-                Button(
+            if installed:
+                name_control = Button(
                     f"{name}{default_mark}",
                     id=f"set-{name}",
                     classes="btn btn-secondary btn-inline model-col-model",
-                    disabled=not installed,
-                ),
+                )
+            else:
+                name_control = Static(name, classes="model-col-model model-name-static")
+            row = Horizontal(
+                Static(downloaded_mark, classes="model-col-mark"),
+                name_control,
                 Button(
                     "Remove" if installed else "Download",
                     id=f"{'remove' if installed else 'download'}-{name}",
                     classes="btn btn-secondary btn-inline model-col-action",
                 ),
-                classes="model-row",
+                classes="strip",
             )
             container.mount(row)
 
@@ -97,13 +99,14 @@ class PrefsWhisperScreen(BackScreen):
         if event.button.id == "btn-back":
             self.action_back()
             return
-        if event.button.id == "btn-save-lang":
+        if event.button.id == "btn-save":
             try:
                 lang_inp = self.query_one("#language-input", Input)
                 cfg = load_config()
                 cfg["language"] = lang_inp.value.strip() or "en"
                 save_config(cfg)
-                self.notify("Language saved")
+                self.notify("Language saved.")
+                self.action_back()
             except Exception:
                 pass
             return

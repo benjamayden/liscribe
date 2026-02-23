@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Input, Static, Switch
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
@@ -16,49 +16,44 @@ class PrefsTranscriptsScreen(BackScreen):
     def compose(self):
         cfg = load_config()
         folder = cfg.get("save_folder", "~/transcripts") or "~/transcripts"
-        self._use_here_default = bool(cfg.get("record_here_by_default", False))
+        use_here_default = bool(cfg.get("record_here_by_default", False))
         open_app = str(cfg.get("open_transcript_app", "cursor") or "cursor")
 
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Transcripts")
-            with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer-y")
-                yield Static("Default save path (recordings and transcripts):")
-                yield Input(value=folder, id="save-input", placeholder="~/transcripts")
-                yield Static("", classes="margin-small")
-                with Horizontal(classes="row row-height-1"):
-                    yield Static("Use --here path by default when pressing Record:")
-                    yield Button(
-                        "Deactivate" if self._use_here_default else "Activate",
-                        id="here-default-btn",
-                        classes="btn btn-secondary btn-inline" if not self._use_here_default else "btn danger inline",
-                    )
-                yield Static("", classes="margin-small")
-                yield Static("When enabled, Record saves to ./docs/transcripts from the current directory.", classes="screen-body-subtitle")
-                yield Static("", classes="margin-small")
-                yield Static("Default app for 'Open transcript' (e.g. cursor, code, code -r, default):")
-                yield Input(value=open_app, id="open-app-input", placeholder="cursor")
-                yield Static("", classes="margin-small")
+            yield Static("")
+            save_input = Input(value=folder, id="save-input", placeholder="~/transcripts", classes="text-input")
+            save_input.border_title = "Default save path"
+            save_input.border_subtitle = "Recordings and transcripts"
+            with Horizontal(classes="top-container"):
+                yield save_input
+            yield Static("")
+            here_switch = Switch(value=use_here_default, id="here-default-switch", classes="switch-input")
+            here_switch.border_title = "Use --here by default"
+            here_switch.border_subtitle = "Record saves to ./docs/transcripts from current directory"
+            with Horizontal(classes="top-container"):
+                yield here_switch
+            yield Static("")
+            open_app_input = Input(value=open_app, id="open-app-input", placeholder="cursor", classes="text-input")
+            open_app_input.border_title = "Open transcript app"
+            open_app_input.border_subtitle = "e.g. cursor, code, code -r, default"
+            with Horizontal(classes="top-container"):
+                yield open_app_input
+            yield Static("")
             with Horizontal(classes="footer-container"):
-                    yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
-                    yield Static("", classes="spacer-x")
-                    yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
+                yield Button("Save", id="btn-save", classes="btn btn-primary")
+                yield Static("", classes="spacer-x")
+                yield Button("Back", id="btn-back", classes="btn btn-secondary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":
             self.action_back()
             return
-        if event.button.id == "here-default-btn":
-            self._use_here_default = not self._use_here_default
-            btn = event.button
-            btn.label = "Deactivate" if self._use_here_default else "Activate"
-            btn.classes = "btn btn-danger btn-inline" if self._use_here_default else "btn btn-secondary btn-inline"
-            return
         if event.button.id != "btn-save":
             return
 
         folder = self.query_one("#save-input", Input).value.strip() or "~/transcripts"
-        use_here_default = self._use_here_default
+        use_here_default = self.query_one("#here-default-switch", Switch).value
         open_app = self.query_one("#open-app-input", Input).value.strip() or "cursor"
 
         cfg = load_config()
@@ -66,4 +61,5 @@ class PrefsTranscriptsScreen(BackScreen):
         cfg["record_here_by_default"] = bool(use_here_default)
         cfg["open_transcript_app"] = open_app
         save_config(cfg)
-        self.notify("Transcript settings saved")
+        self.notify("Transcript settings saved.")
+        self.action_back()

@@ -19,14 +19,15 @@ class PreferencesHubScreen(BackScreen):
                 yield Static("", classes="spacer-y")  
              
             with Horizontal(classes="footer-container"):
-                yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline fixed-width")
                 yield Static("", classes="spacer-x")
-                yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline fixed-width")
                 yield Static("", classes="spacer-x")
-                yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline fixed-width")
                 yield Static("", classes="spacer-x")
-                yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline hug-row")
-                yield Button("^c Back", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline fixed-width")
+                yield Static("", classes="spacer-x")
+                yield Button("^c Back home", id="btn-back", classes="btn btn-secondary btn-inline fixed-width")
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

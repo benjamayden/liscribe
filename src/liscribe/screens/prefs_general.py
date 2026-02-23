@@ -35,7 +35,7 @@ class PrefsGeneralScreen(BackScreen):
             with Horizontal(classes="top-container"):
                 yield clipboard_switch
             yield Static("")
-            alias_input = Input(value=alias, id="alias-input", placeholder="rec")
+            alias_input = Input(value=alias, id="alias-input", placeholder="rec", classes="text-input")
             alias_input.border_title = "Command alias"
             alias_input.border_subtitle = f"Updates {get_shell_rc_path()}. Changes shell commands."
             with Horizontal(classes="top-container"):

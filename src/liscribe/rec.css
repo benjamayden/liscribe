@@ -282,6 +282,10 @@ Screen {
     min-width: 3;
 }
 
+.fixed-width {
+    width: 4;
+}
+
 /* Preferences - whisper models */
 
 .model-row {
@@ -305,6 +309,14 @@ Screen {
     width: 18;
     content-align: left middle;
     text-align: left;
+}
+
+/* Same horizontal padding as .btn so Static model names align with Button model names */
+.model-name-static {
+    padding: 0 2;
+}
+.model-col-model.btn {
+    padding: 0 1;
 }
 
 .model-col-action {
