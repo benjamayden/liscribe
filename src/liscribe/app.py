@@ -10,6 +10,7 @@ from liscribe.screens.home import (
     HomeRecordRequest,
     HomeScreen,
     HomeTranscriptsRequest,
+    HomeHelpRequest
 )
 from liscribe.screens.devices_screen import DevicesScreen
 from liscribe.screens.help_screen import HelpScreen
@@ -18,6 +19,7 @@ from liscribe.screens.transcripts import TranscriptsScreen
 from liscribe.screens.modals import ConfirmCancelScreen, MicSelectScreen
 from liscribe.screens.recording import RecordingResult, RecordingScreen
 from liscribe.screens.transcribing import TranscribingScreen
+from liscribe.screens.help_screen import HelpScreen
 
 
 class LiscribeApp(App[None]):
@@ -120,3 +122,6 @@ class LiscribeApp(App[None]):
 
     def on_home_transcripts_request(self, _: HomeTranscriptsRequest) -> None:
         self.push_screen(TranscriptsScreen())
+
+    def on_home_help_request(self, _: HomeHelpRequest) -> None:
+        self.push_screen(HelpScreen())

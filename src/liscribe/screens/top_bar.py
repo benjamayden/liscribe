@@ -236,7 +236,7 @@ class TopBar(Vertical):
                 yield Static("", classes="spacer-x")
             yield Static("")
             yield Static(
-                "It listens & transcribes locally",
+                "100% offline terminal recorder and transcriber",
                 classes="subtitle",
             )
         with Horizontal(classes="top-bar-compact-row top-bar-internal"):

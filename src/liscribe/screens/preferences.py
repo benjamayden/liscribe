@@ -17,18 +17,16 @@ class PreferencesHubScreen(BackScreen):
             yield TopBar(variant="hero", section="Preferences")
             with Vertical(classes="screen-body"):
                 yield Static("", classes="spacer-y")  
-                with Horizontal(classes="row"):
-                    yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline hug-row")
-                    yield Static("", classes="spacer-x")
-                    yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline hug-row")
-                    yield Static("", classes="spacer-x")
-                    yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline hug-row")
-                    yield Static("", classes="spacer-x")
-                    yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline hug-row")
-                yield Static("", classes="margin-small")                
+             
             with Horizontal(classes="footer-container"):
-                yield Button("^c Back to home", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
-                yield Static("", classes="spacer-x")  
+                yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline hug-row")
+                yield Static("", classes="spacer-x")
+                yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline hug-row")
+                yield Static("", classes="spacer-x")
+                yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline hug-row")
+                yield Static("", classes="spacer-x")
+                yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline hug-row")
+                yield Button("^c Back", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

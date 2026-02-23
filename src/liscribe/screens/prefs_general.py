@@ -28,15 +28,21 @@ class PrefsGeneralScreen(BackScreen):
 
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="General")
-            with Horizontal(classes="top-container",classes="debug-css"):
-                yield Static("Add to clipboard after transcription:")
-                yield Switch(value=auto_clipboard, id="clipboard-switch")
+            yield Static("")
+            clipboard_switch = Switch(value=auto_clipboard, id="clipboard-switch", classes="switch-input")
+            clipboard_switch.border_title = "Auto copy"
+            clipboard_switch.border_subtitle = "Copy transcript to clipboard when transcription finishes"
             with Horizontal(classes="top-container"):
-                yield Static("Command alias:")
-                yield Input(value=alias, id="alias-input", placeholder="rec")
-                yield Static(f"Updates {get_shell_rc_path()}. Changes shell commands", classes="screen-body-subtitle")
+                yield clipboard_switch
+            yield Static("")
+            alias_input = Input(value=alias, id="alias-input", placeholder="rec")
+            alias_input.border_title = "Command alias"
+            alias_input.border_subtitle = f"Updates {get_shell_rc_path()}. Changes shell commands."
+            with Horizontal(classes="top-container"):
+                yield alias_input
+            yield Static("")
             with Horizontal(classes="footer-container"):
-                yield Button("Save general settings", id="btn-save", classes="btn btn-primary")
+                yield Button("Save", id="btn-save", classes="btn btn-primary")
                 yield Static("", classes="spacer-x")
                 yield Button("Back", id="btn-back", classes="btn btn-secondary")
 
@@ -51,12 +57,21 @@ class PrefsGeneralScreen(BackScreen):
         auto_clipboard = self.query_one("#clipboard-switch", Switch).value
 
         cfg = load_config()
+        current_alias = cfg.get("command_alias", "rec") or "rec"
+        current_clipboard = bool(cfg.get("auto_clipboard", True))
+        if alias == current_alias and auto_clipboard == current_clipboard:
+            self.notify("Nothing changed.")
+            self.action_back()
+            return
+
         cfg["command_alias"] = alias
         cfg["auto_clipboard"] = bool(auto_clipboard)
         save_config(cfg)
-
-        rc = update_shell_alias(alias)
-        if rc:
-            self.notify(f"Saved. Alias updated in {rc}")
-        else:
-            self.notify("Saved. Could not update shell rc (rec binary not found?).")
+        if alias != current_alias:
+            rc = update_shell_alias(alias)
+            if rc is None:
+                self.notify("General settings saved, but could not update shell rc.", severity="warning")
+                self.action_back()
+                return
+        self.notify("General settings saved.")
+        self.action_back()

@@ -22,6 +22,8 @@ class HomePreferencesRequest(Message):
 class HomeTranscriptsRequest(Message):
     """User requested Transcripts from Home."""
 
+class HomeHelpRequest(Message):
+    """User requested Help from Home."""
 
 class HomeScreen(Screen[None]):
     """Home hub: Record, Preferences, Transcripts, Quit."""
@@ -42,6 +44,8 @@ class HomeScreen(Screen[None]):
                         yield Static("", classes="spacer-x")
                         yield Button("^p  Preferences", id="btn-preferences", classes="btn btn-secondary btn-inline")
                         yield Static("", classes="spacer-x")
+                        yield Button("^h  Help", id="btn-help", classes="btn btn-secondary btn-inline")
+                        yield Static("", classes="spacer-x")
                         yield Button("^c  Close", id="btn-quit", classes="btn btn-danger btn-inline")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -52,6 +56,8 @@ class HomeScreen(Screen[None]):
             self.action_preferences()
         elif bid == "btn-transcripts":
             self.action_transcripts()
+        elif bid == "btn-help":
+            self.action_help()
         elif bid == "btn-quit":
             self.action_quit()
 
@@ -63,6 +69,9 @@ class HomeScreen(Screen[None]):
 
     def action_transcripts(self) -> None:
         self.post_message(HomeTranscriptsRequest())
+    
+    def action_help(self) -> None:
+        self.post_message(HomeHelpRequest())
 
     def action_home_quit(self) -> None:
         self.action_quit()

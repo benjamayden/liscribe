@@ -190,6 +190,6 @@ class TranscriptRow(Horizontal):
     def compose(self):
         self.id = f"row-{self.token}"
         yield Static(f"{self.date_str}   {self.path.name}", id=f"label-{self.token}", classes="transcript-label")
-        yield Button("Copy", id=f"copy-{self.token}", classes="btn btn-secondary btn-inline hug-button")
-        yield Button("Open", id=f"open-{self.token}", classes="btn btn-secondary btn-inline hug-button")
-        yield Button("Delete", id=f"delete-{self.token}", classes="btn btn-secondary btn-inline hug-button")
+        yield Button("Copy", id=f"copy-{self.token}", classes="btn btn-secondary btn-inline hug-width")
+        yield Button("Open", id=f"open-{self.token}", classes="btn btn-secondary btn-inline hug-width")
+        yield Button("Delete", id=f"delete-{self.token}", classes="btn btn-secondary btn-inline hug-width")

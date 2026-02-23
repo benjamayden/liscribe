@@ -112,6 +112,10 @@ def main() -> None:
             })
         print(f"PROGRESS:{json.dumps(payload, separators=(',', ':'))}", flush=True)
 
+    def emit_clipboard(success: bool) -> None:
+        payload = {"success": bool(success)}
+        print(f"CLIPBOARD:{json.dumps(payload, separators=(',', ':'))}", flush=True)
+
     emit_progress(0.0, "loading-model")
 
     try:
@@ -173,10 +177,11 @@ def main() -> None:
         sys.exit(1)
 
     if cfg.get("auto_clipboard", False):
+        emit_progress(1.0, "copying-clipboard")
         try:
-            copy_to_clipboard(result.text)
+            emit_clipboard(copy_to_clipboard(result.text))
         except Exception:
-            pass
+            emit_clipboard(False)
 
     all_md_paths = [md_path]
     if dual_session:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import ScrollableContainer, Vertical
+from textual.containers import ScrollableContainer, Vertical, Horizontal
 from textual.widgets import Button, Static
 
 from liscribe.config import load_config
@@ -16,10 +16,11 @@ class HelpScreen(BackScreen):
     def compose(self):
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Help")
-            with Vertical(classes="screen-body"):
-                with ScrollableContainer(id="help-scroll", classes="scroll-fill"):
-                    yield Static("", id="help-text")
-                yield Button("Back to Home", id="btn-back", classes="btn btn-secondary")
+            with ScrollableContainer(id="help-scroll", classes="scroll-fill"):
+                yield Static("", id="help-text")
+            with Horizontal(classes="footer-container"):
+                yield Static("", classes="spacer-x")
+                yield Button("^c Home", id="btn-back", classes="btn btn-secondary")
 
     def on_mount(self) -> None:
         from liscribe.cli import get_help_text
