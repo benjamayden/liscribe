@@ -1,4 +1,4 @@
-"""Modal screens used by Recording (mic select, cancel confirm)."""
+"""Modal screens used by app screens (mic select, confirmations)."""
 
 from __future__ import annotations
 
@@ -63,6 +63,47 @@ class ConfirmCancelScreen(ModalScreen[bool]):
                 id="cancel-confirm-list",
             ),
             id="cancel-confirm-container",
+        )
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        if event.option.id == "yes":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+    def action_yes(self) -> None:
+        self.dismiss(True)
+
+    def action_no(self) -> None:
+        self.dismiss(False)
+
+
+class ConfirmDeleteTranscriptScreen(ModalScreen[bool]):
+    """Ask user to confirm deleting a transcript file."""
+
+    BINDINGS = [
+        Binding("escape", "no", "No"),
+        Binding("ctrl+c", "no", "No", key_display="^c", priority=True),
+        Binding("y", "yes", "Yes"),
+        Binding("n", "no", "No"),
+    ]
+
+    def __init__(self, filename: str) -> None:
+        super().__init__()
+        self.filename = filename
+
+    def compose(self):
+        yield Vertical(
+            Label(
+                f"Delete transcript '{self.filename}'? This cannot be undone.",
+                id="delete-confirm-message",
+            ),
+            OptionList(
+                Option("Yes, delete transcript", id="yes"),
+                Option("No, keep transcript", id="no"),
+                id="delete-confirm-list",
+            ),
+            id="delete-confirm-container",
         )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
