@@ -302,14 +302,16 @@ chosen_lang="${chosen_lang:-en}"
 chosen_lang="$(echo "$chosen_lang" | tr '[:upper:]' '[:lower:]')"
 ok "Language: $chosen_lang"
 
-"$VENV_DIR/bin/python" -c "
+LISCRIBE_WHISPER_MODEL="$chosen_model" LISCRIBE_LANGUAGE="$chosen_lang" \
+  "$VENV_DIR/bin/python" - <<'EOF'
+import os
 from liscribe.config import load_config, save_config, init_config_if_missing
 init_config_if_missing()
 cfg = load_config()
-cfg['whisper_model'] = '$chosen_model'
-cfg['language'] = '$chosen_lang'
+cfg['whisper_model'] = os.environ['LISCRIBE_WHISPER_MODEL']
+cfg['language'] = os.environ['LISCRIBE_LANGUAGE']
 save_config(cfg)
-"
+EOF
 ok "Config saved to ~/.config/liscribe/config.json"
 
 # ── 5. Shell alias ──────────────────────────────────────────────────────────
@@ -332,6 +334,10 @@ REC_BIN="$VENV_DIR/bin/rec"
 echo ""
 read -rp "  Alias name (default: rec): " alias_name
 alias_name="${alias_name:-rec}"
+if [[ ! "$alias_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    warn "Alias name contains invalid characters. Using 'rec' instead."
+    alias_name="rec"
+fi
 
 ALIAS_LINE="alias ${alias_name}='${REC_BIN}'  ${ALIAS_MARKER}"
 

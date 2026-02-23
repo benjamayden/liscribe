@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Button, Input, Static, Switch
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
 from liscribe.screens.top_bar import TopBar
+
+_BLOCKED_SAVE_FOLDERS = frozenset({
+    Path(p) for p in ("/", "/etc", "/usr", "/bin", "/sbin", "/var", "/dev", "/sys", "/proc")
+})
+
+
+def _is_safe_save_folder(folder: str) -> bool:
+    try:
+        resolved = Path(folder).expanduser().resolve()
+    except Exception:
+        return False
+    return resolved not in _BLOCKED_SAVE_FOLDERS and len(resolved.parts) > 2
 
 
 class PrefsTranscriptsScreen(BackScreen):
@@ -56,6 +69,10 @@ class PrefsTranscriptsScreen(BackScreen):
         folder = self.query_one("#save-input", Input).value.strip() or "~/transcripts"
         use_here_default = self.query_one("#here-default-switch", Switch).value
         open_app = self.query_one("#open-app-input", Input).value.strip() or "cursor"
+
+        if not _is_safe_save_folder(folder):
+            self.notify("Invalid save folder path.", severity="error")
+            return
 
         cfg = load_config()
         cfg["save_folder"] = folder

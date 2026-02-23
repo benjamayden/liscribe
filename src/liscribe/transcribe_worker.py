@@ -56,6 +56,9 @@ def _load_dual_source_session(audio_path: Path) -> dict | None:
     }
 
 
+_VALID_MODELS = frozenset({"tiny", "base", "small", "medium", "large"})
+
+
 def main() -> None:
     if len(sys.argv) < 7:
         print("Usage: transcribe_worker <result_file> <wav_path> <model> <output_dir> <notes_json> <speaker>", file=sys.stderr)
@@ -70,6 +73,10 @@ def main() -> None:
 
     def write_error(msg: str) -> None:
         result_file.write_text(f"ERROR:{msg}", encoding="utf-8")
+
+    if model_size not in _VALID_MODELS:
+        write_error(f"Invalid model: {model_size!r}. Valid: {', '.join(sorted(_VALID_MODELS))}")
+        sys.exit(1)
 
     if not wav_path.exists():
         write_error(f"Audio file not found: {wav_path}")

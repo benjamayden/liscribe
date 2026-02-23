@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from textual.containers import Vertical
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
 from liscribe.screens.top_bar import TopBar
+from liscribe.screens.prefs_transcripts import _is_safe_save_folder
 
 
 class PrefsSaveLocationScreen(BackScreen):
@@ -36,6 +38,9 @@ class PrefsSaveLocationScreen(BackScreen):
         if event.button.id == "btn-save":
             inp = self.query_one("#save-input", Input)
             folder = inp.value.strip() or "~/transcripts"
+            if not _is_safe_save_folder(folder):
+                self.notify("Invalid save folder path.", severity="error")
+                return
             cfg = load_config()
             cfg["save_folder"] = folder
             save_config(cfg)

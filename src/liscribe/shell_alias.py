@@ -58,6 +58,8 @@ def update_shell_alias(alias_name: str) -> Path | None:
     """Update shell rc so the given alias runs liscribe. Remove old liscribe alias, add new one.
     Returns the rc path if the file was updated, None otherwise.
     """
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", alias_name):
+        return None
     rc = get_shell_rc_path()
     try:
         if rc.exists():

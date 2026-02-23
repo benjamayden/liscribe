@@ -124,10 +124,16 @@ class PrefsWhisperScreen(BackScreen):
             return
         if event.button.id and event.button.id.startswith("download-"):
             model = event.button.id.replace("download-", "")
+            if model not in WHISPER_MODELS:
+                self.notify(f"Unknown model: {model}", severity="error")
+                return
             self.run_worker(self._download_model, model, exclusive=True, thread=True)
             return
         if event.button.id and event.button.id.startswith("remove-"):
             model = event.button.id.replace("remove-", "")
+            if model not in WHISPER_MODELS:
+                self.notify(f"Unknown model: {model}", severity="error")
+                return
             self.run_worker(self._remove_model, model, exclusive=True, thread=True)
 
     def _download_model(self, model: str) -> None:

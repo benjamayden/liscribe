@@ -11,6 +11,11 @@ import tempfile
 import time
 from pathlib import Path
 
+_ALLOWED_OPENERS = frozenset({
+    "cursor", "code", "vim", "nvim", "nano", "kate", "subl", "subl3",
+    "gedit", "emacs", "atom", "zed", "open", "xdg-open",
+})
+
 from textual import events
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -265,7 +270,19 @@ class TranscribingScreen(Screen[None]):
             if sys.platform.startswith("win"):
                 return ["cmd", "/c", "start", "", str(transcript_path)]
             return ["xdg-open", str(transcript_path)]
-        return [*shlex.split(app), str(transcript_path)]
+        try:
+            parts = shlex.split(app)
+        except ValueError as exc:
+            raise ValueError(f"Invalid open_transcript_app: {exc}") from exc
+        if not parts:
+            raise ValueError("open_transcript_app is empty")
+        executable = Path(parts[0]).name
+        if executable not in _ALLOWED_OPENERS:
+            raise ValueError(
+                f"Disallowed opener: {executable!r}. "
+                f"Allowed: {', '.join(sorted(_ALLOWED_OPENERS))}, default"
+            )
+        return [*parts, str(transcript_path)]
 
     def _guess_transcript_name(self) -> str:
         wav_path_obj = Path(self._wav_path)

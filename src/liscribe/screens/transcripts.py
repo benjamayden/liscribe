@@ -17,6 +17,11 @@ from liscribe.screens.base import BackScreen
 from liscribe.screens.modals import ConfirmDeleteTranscriptScreen
 from liscribe.screens.top_bar import TopBar
 
+_ALLOWED_OPENERS = frozenset({
+    "cursor", "code", "vim", "nvim", "nano", "kate", "subl", "subl3",
+    "gedit", "emacs", "atom", "zed", "open", "xdg-open",
+})
+
 
 class TranscriptsScreen(BackScreen):
     """List transcripts from --here and default folders; copy/open/delete actions."""
@@ -101,7 +106,19 @@ class TranscriptsScreen(BackScreen):
             if sys.platform.startswith("win"):
                 return ["cmd", "/c", "start", "", str(transcript_path)]
             return ["xdg-open", str(transcript_path)]
-        return [*shlex.split(app), str(transcript_path)]
+        try:
+            parts = shlex.split(app)
+        except ValueError as exc:
+            raise ValueError(f"Invalid open_transcript_app: {exc}") from exc
+        if not parts:
+            raise ValueError("open_transcript_app is empty")
+        executable = Path(parts[0]).name
+        if executable not in _ALLOWED_OPENERS:
+            raise ValueError(
+                f"Disallowed opener: {executable!r}. "
+                f"Allowed: {', '.join(sorted(_ALLOWED_OPENERS))}, default"
+            )
+        return [*parts, str(transcript_path)]
 
     def _copy_transcript(self, path: Path) -> None:
         if not path.exists():
