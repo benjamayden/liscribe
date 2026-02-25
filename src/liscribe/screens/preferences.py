@@ -14,9 +14,9 @@ class PreferencesHubScreen(BackScreen):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            yield TopBar(variant="hero", section="Preferences")
+            yield TopBar(variant="compact", section="Preferences")
             with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer-y")  
+                yield Static("", classes="spacer-y")
              
             with Horizontal(classes="footer-container"):
                 yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline fixed-width")
