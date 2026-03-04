@@ -1,31 +1,34 @@
-"""Preferences — Dictation: model, hotkey, system sounds."""
+"""Preferences — Dictation: model, hotkey, system sounds.
+
+All settings save immediately on interaction and confirm with a notify() toast.
+There is no separate Save button — this matches the prefs_whisper.py pattern
+where button-style selections take effect instantly.
+"""
 
 from __future__ import annotations
+
+import logging
 
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Button, Static, Switch
 
 from liscribe.config import load_config, save_config
+from liscribe.dictation import VALID_HOTKEYS
 from liscribe.screens.base import BackScreen
 from liscribe.screens.top_bar import TopBar
-from liscribe import transcriber as _transcriber
+from liscribe.transcriber import WHISPER_MODEL_ORDER, is_model_available
 
-WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
+logger = logging.getLogger(__name__)
 
-HOTKEYS = [
-    ("right_ctrl", "Right Ctrl"),
-    ("left_ctrl", "Left Ctrl"),
-    ("right_shift", "Right Shift"),
-    ("caps_lock", "Caps Lock"),
-]
-
-
-def _is_model_available(name: str) -> bool:
-    return _transcriber.is_model_available(name)
+# Ordered tuple of (config-id, display-label) derived from the single source of truth
+_HOTKEY_ITEMS: tuple[tuple[str, str], ...] = tuple(VALID_HOTKEYS.items())
 
 
 class PrefsDictationScreen(BackScreen):
-    """Dictation settings: model, hotkey, sounds."""
+    """Dictation settings: model, hotkey, sounds.
+
+    All changes take effect immediately (no Save step).
+    """
 
     def compose(self):
         cfg = load_config()
@@ -49,19 +52,23 @@ class PrefsDictationScreen(BackScreen):
                 yield Static("")
 
                 # ── Hotkey ─────────────────────────────────────────────
-                hotkey_input = Static(
-                    "  Double-tap to start · single tap to stop",
+                hotkey_desc = Static(
+                    "  Double-tap to start \u00b7 single tap to stop",
                     id="hotkey-label",
                 )
-                hotkey_input.border_title = "Hotkey"
-                hotkey_input.border_subtitle = "right_ctrl / left_ctrl / right_shift / caps_lock"
+                hotkey_desc.border_title = "Hotkey"
+                hotkey_desc.border_subtitle = (
+                    "right_ctrl / left_ctrl / right_shift / caps_lock"
+                )
                 with Horizontal(classes="top-container"):
-                    yield hotkey_input
+                    yield hotkey_desc
 
                 yield Static("")
                 with Horizontal(id="hotkey-row", classes="hug-container"):
-                    for key_id, key_label in HOTKEYS:
-                        variant = "btn-primary" if key_id == current_hotkey else "btn-secondary"
+                    for key_id, key_label in _HOTKEY_ITEMS:
+                        variant = (
+                            "btn-primary" if key_id == current_hotkey else "btn-secondary"
+                        )
                         yield Button(
                             key_label,
                             id=f"hotkey-{key_id}",
@@ -84,9 +91,10 @@ class PrefsDictationScreen(BackScreen):
                 yield Static("")
 
             with Horizontal(classes="footer-container"):
-                yield Button("Save", id="btn-save", classes="btn btn-primary")
                 yield Static("", classes="spacer-x")
-                yield Button("Back", id="btn-back", classes="btn btn-secondary")
+                yield Button(
+                    "Back", id="btn-back", classes="btn btn-secondary btn-inline fixed-width"
+                )
 
     def on_mount(self) -> None:
         self._refresh_models()
@@ -97,8 +105,8 @@ class PrefsDictationScreen(BackScreen):
         container = self.query_one("#dictation-model-list", Vertical)
         container.remove_children()
 
-        for name in WHISPER_MODELS:
-            installed = _is_model_available(name)
+        for name in WHISPER_MODEL_ORDER:
+            installed = is_model_available(name)
             is_current = name == current
             mark = "\u2713" if installed else "\u2718"
             heart = " \u2665\ufe0e" if is_current else ""
@@ -123,6 +131,16 @@ class PrefsDictationScreen(BackScreen):
             )
             container.mount(row)
 
+    def on_switch_changed(self, event: Switch.Changed) -> None:
+        """Auto-save sounds toggle on change."""
+        if event.switch.id != "sounds-switch":
+            return
+        cfg = load_config()
+        cfg["dictation_sounds"] = bool(event.value)
+        save_config(cfg)
+        label = "on" if event.value else "off"
+        self.notify(f"Sounds {label}.")
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
 
@@ -130,23 +148,11 @@ class PrefsDictationScreen(BackScreen):
             self.action_back()
             return
 
-        if bid == "btn-save":
-            cfg = load_config()
-            cfg["dictation_sounds"] = bool(
-                self.query_one("#sounds-switch", Switch).value
-            )
-            save_config(cfg)
-            self.notify("Dictation settings saved.")
-            self.action_back()
-            return
-
-        # Model selection
+        # Model selection — save immediately
         if bid and bid.startswith("dict-set-"):
             model = bid.replace("dict-set-", "")
-            if not _is_model_available(model):
-                self.notify(
-                    f"Model {model} is not installed.", severity="error"
-                )
+            if not is_model_available(model):
+                self.notify(f"Model {model} is not installed.", severity="error")
                 return
             cfg = load_config()
             cfg["dictation_model"] = model
@@ -155,22 +161,30 @@ class PrefsDictationScreen(BackScreen):
             self._refresh_models()
             return
 
-        # Hotkey selection
+        # Hotkey selection — save immediately
         if bid and bid.startswith("hotkey-"):
             hotkey = bid.replace("hotkey-", "")
+            if hotkey not in VALID_HOTKEYS:
+                logger.warning("Unknown hotkey id pressed: %r", hotkey)
+                return
             cfg = load_config()
             cfg["dictation_hotkey"] = hotkey
             save_config(cfg)
-            label = dict(HOTKEYS).get(hotkey, hotkey)
-            self.notify(f"Hotkey set to {label}.")
-            for key_id, _ in HOTKEYS:
-                try:
-                    btn = self.query_one(f"#hotkey-{key_id}", Button)
-                    if key_id == hotkey:
-                        btn.remove_class("btn-secondary")
-                        btn.add_class("btn-primary")
-                    else:
-                        btn.remove_class("btn-primary")
-                        btn.add_class("btn-secondary")
-                except Exception:
-                    pass
+            self.notify(f"Hotkey set to {VALID_HOTKEYS[hotkey]}.")
+            self._update_hotkey_buttons(hotkey)
+            return
+
+    def _update_hotkey_buttons(self, active_hotkey: str) -> None:
+        """Update button styles to reflect the newly selected hotkey."""
+        for key_id, _ in _HOTKEY_ITEMS:
+            try:
+                btn = self.query_one(f"#hotkey-{key_id}", Button)
+            except Exception as exc:
+                logger.debug("Could not find hotkey button %r: %s", key_id, exc)
+                continue
+            if key_id == active_hotkey:
+                btn.remove_class("btn-secondary")
+                btn.add_class("btn-primary")
+            else:
+                btn.remove_class("btn-primary")
+                btn.add_class("btn-secondary")
