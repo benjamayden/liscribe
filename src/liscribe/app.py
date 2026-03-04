@@ -106,7 +106,6 @@ class LiscribeApp(App[None]):
                 folder = str(Path.cwd() / "docs" / "transcripts")
             else:
                 folder = cfg.get("save_folder", "~/transcripts")
-        Path(folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
         self.push_screen(
             RecordingScreen(
                 folder=folder,

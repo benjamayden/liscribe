@@ -543,6 +543,17 @@ class DictationDaemon:
                 self._state = _State.IDLE
             return
 
+        # Press Return after paste if auto-enter is enabled (re-read config so toggle takes effect immediately)
+        if load_config().get("dictation_auto_enter", True):
+            try:
+                from pynput.keyboard import Controller, Key
+                kb = Controller()
+                time.sleep(0.05)
+                kb.press(Key.enter)
+                kb.release(Key.enter)
+            except Exception as exc:
+                logger.debug("Auto-enter failed: %s", exc)
+
         word_count = len(text.split())
         preview = text[:60] + ("\u2026" if len(text) > 60 else "")
         _console.print(

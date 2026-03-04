@@ -12,7 +12,7 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Input, Static
 
-from liscribe.config import load_config
+from liscribe.config import load_config, save_config
 from liscribe.screens.top_bar import TopBar
 from liscribe.screens.base import RECORDING_BINDINGS
 from liscribe.notes import Note, NoteCollection
@@ -117,8 +117,10 @@ class RecordingScreen(Screen[RecordingResult]):
 
         cfg = load_config()
 
+        # Fallback chain: --mic CLI arg → default_mic from config → system default (None)
+        mic_to_resolve = self.mic_arg or cfg.get("default_mic") or None
         try:
-            self.session.device_idx = resolve_device(self.mic_arg)
+            self.session.device_idx = resolve_device(mic_to_resolve)
         except ValueError as exc:
             self._exit_error_message = str(exc)
             self.notify(str(exc), severity="error")
@@ -333,7 +335,11 @@ class RecordingScreen(Screen[RecordingResult]):
         if device_idx is not None and self.session:
             self.session.switch_mic(device_idx)
             dev_info = sd.query_devices(device_idx)
-            self.notify(f"Switched to: {dev_info['name']}")
+            dev_name = dev_info["name"]
+            cfg = load_config()
+            cfg["default_mic"] = dev_name
+            save_config(cfg)
+            self.notify(f"Switched to: {dev_name} (saved as default)")
         else:
             self.notify("Mic unchanged")
 
@@ -353,4 +359,11 @@ class RecordingScreen(Screen[RecordingResult]):
             self.session._mic_stream = None
             self.session._speaker_stream = None
             self.session._restore_audio_output()
+            # Clean up the save directory if it exists and is empty (no audio was saved)
+            try:
+                save_dir = self.session.save_dir
+                if save_dir.exists() and not any(save_dir.iterdir()):
+                    save_dir.rmdir()
+            except Exception:
+                pass
         self.dismiss(None)

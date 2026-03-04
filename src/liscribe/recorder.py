@@ -168,7 +168,6 @@ class RecordingSession:
         self.blackhole_name: str = cfg.get("blackhole_device", "BlackHole 2ch")
 
         self.save_dir = Path(folder).expanduser().resolve()
-        self.save_dir.mkdir(parents=True, exist_ok=True)
 
         self.speaker = speaker
         self.mic_arg = mic
@@ -466,6 +465,9 @@ class RecordingSession:
             self._speaker_chunks.clear()
 
             mic_audio = mic_audio.astype(np.float32)
+
+        # Create save directory only when we have audio to write
+        self.save_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate filename and save
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
