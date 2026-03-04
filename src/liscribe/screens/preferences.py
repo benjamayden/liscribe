@@ -20,6 +20,7 @@ class PreferencesHubScreen(BackScreen):
                 yield Button("General", id="btn-general", classes="btn btn-secondary btn-block")
                 yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-block")
                 yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-block")
+                yield Button("Dictation", id="btn-dictation", classes="btn btn-secondary btn-block")
                 yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-block")
             with Horizontal(classes="footer-container"):
                 yield Static("", classes="spacer-x")
@@ -42,3 +43,6 @@ class PreferencesHubScreen(BackScreen):
         elif bid == "btn-whisper":
             from liscribe.screens.prefs_whisper import PrefsWhisperScreen
             self.app.push_screen(PrefsWhisperScreen())
+        elif bid == "btn-dictation":
+            from liscribe.screens.prefs_dictation import PrefsDictationScreen
+            self.app.push_screen(PrefsDictationScreen())
