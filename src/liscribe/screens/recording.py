@@ -12,7 +12,9 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Input, Static
 
-from liscribe.config import load_config, save_config
+import logging
+
+from liscribe.config import load_config
 from liscribe.screens.top_bar import TopBar
 from liscribe.screens.base import RECORDING_BINDINGS
 from liscribe.notes import Note, NoteCollection
@@ -20,9 +22,11 @@ from liscribe.platform_setup import get_current_output_device, set_output_device
 from liscribe.recorder import (
     RecordingSession,
     _find_blackhole_device,
+    get_preferred_mic,
     list_input_devices,
-    resolve_device,
 )
+
+logger = logging.getLogger(__name__)
 from liscribe.screens.modals import ConfirmCancelScreen, MicSelectScreen
 from liscribe.waveform import WaveformMonitor
 
@@ -117,15 +121,26 @@ class RecordingScreen(Screen[RecordingResult]):
 
         cfg = load_config()
 
-        # Fallback chain: --mic CLI arg → default_mic from config → system default (None)
-        mic_to_resolve = self.mic_arg or cfg.get("default_mic") or None
+        # Resolve mic: CLI arg → saved default (exact match) → system default.
+        # If the saved default is unavailable (e.g. unplugged), warn and continue
+        # rather than blocking the user from recording entirely.
         try:
-            self.session.device_idx = resolve_device(mic_to_resolve)
+            device_idx, used_fallback = get_preferred_mic(self.mic_arg, cfg)
         except ValueError as exc:
+            # Only raised when --mic CLI arg was given but not found (explicit user error)
             self._exit_error_message = str(exc)
             self.notify(str(exc), severity="error")
             self.dismiss(None)
             return
+
+        if used_fallback:
+            saved_name = cfg.get("default_mic", "")
+            self.notify(
+                f"Default mic '{saved_name}' not found — using system default.",
+                severity="warning",
+            )
+
+        self.session.device_idx = device_idx
 
         if self.speaker:
             self.session.blackhole_idx = _find_blackhole_device(self.session.blackhole_name)
@@ -334,12 +349,8 @@ class RecordingScreen(Screen[RecordingResult]):
     def _on_mic_selected(self, device_idx: int | None) -> None:
         if device_idx is not None and self.session:
             self.session.switch_mic(device_idx)
-            dev_info = sd.query_devices(device_idx)
-            dev_name = dev_info["name"]
-            cfg = load_config()
-            cfg["default_mic"] = dev_name
-            save_config(cfg)
-            self.notify(f"Switched to: {dev_name} (saved as default)")
+            dev_name = sd.query_devices(device_idx)["name"]
+            self.notify(f"Switched to: {dev_name}")
         else:
             self.notify("Mic unchanged")
 
@@ -364,6 +375,8 @@ class RecordingScreen(Screen[RecordingResult]):
                 save_dir = self.session.save_dir
                 if save_dir.exists() and not any(save_dir.iterdir()):
                     save_dir.rmdir()
-            except Exception:
-                pass
+            except OSError as exc:
+                logger.debug("Could not clean up empty save dir %s: %s", save_dir, exc)
+            except Exception as exc:
+                logger.warning("Unexpected error cleaning save dir: %s", exc)
         self.dismiss(None)

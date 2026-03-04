@@ -71,7 +71,8 @@ class PrefsMicrophoneScreen(BackScreen):
         devices = list_input_devices()
         for dev in devices:
             is_current = bool(
-                current_mic and current_mic.lower() in dev["name"].lower()
+                current_mic
+                and current_mic.lower().strip() == dev["name"].lower().strip()
             )
             variant = "btn-primary" if is_current else "btn-secondary"
             label = f"[{dev['index']}] {dev['name']} ({dev['channels']}ch, {dev['sample_rate']}Hz)"
