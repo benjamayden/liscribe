@@ -604,6 +604,36 @@ main.add_command(transcribe_cmd, "t")
 
 
 # ---------------------------------------------------------------------------
+# dictate subcommand
+# ---------------------------------------------------------------------------
+
+@main.command(name="dictate")
+@click.option(
+    "--model", "model_size", default=None,
+    help="Whisper model (tiny/base/small/medium/large). Overrides dictation_model config.",
+)
+@click.option(
+    "--hotkey", default=None,
+    help="Key to double-tap (right_ctrl/left_ctrl/right_shift/caps_lock). Overrides config.",
+)
+@click.option(
+    "--no-sounds", is_flag=True, default=False,
+    help="Disable macOS system sounds.",
+)
+def dictate_cmd(model_size: str | None, hotkey: str | None, no_sounds: bool) -> None:
+    """System-wide dictation: double-tap key to record, tap once more to paste transcript."""
+    from liscribe.dictation import DictationDaemon
+
+    cfg = load_config()
+    daemon = DictationDaemon(
+        model_size=model_size or str(cfg.get("dictation_model", "base")),
+        hotkey=hotkey or str(cfg.get("dictation_hotkey", "right_ctrl")),
+        sounds=False if no_sounds else bool(cfg.get("dictation_sounds", True)),
+    )
+    daemon.run()
+
+
+# ---------------------------------------------------------------------------
 # setup subcommand
 # ---------------------------------------------------------------------------
 

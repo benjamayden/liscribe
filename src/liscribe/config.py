@@ -77,6 +77,18 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": False,
         "description": "When true, pressing Record from the TUI Home screen saves to ./docs/transcripts in the current directory (same behavior as --here).",
     },
+    "dictation_model": {
+        "value": "base",
+        "description": "Whisper model for dictation mode: tiny, base, small, medium, large. Use tiny/base for fastest response.",
+    },
+    "dictation_hotkey": {
+        "value": "right_ctrl",
+        "description": "Key to double-tap to start dictation. Options: right_ctrl, left_ctrl, right_shift, caps_lock.",
+    },
+    "dictation_sounds": {
+        "value": True,
+        "description": "Play macOS system sounds for dictation start, stop, and completion.",
+    },
 }
 
 
