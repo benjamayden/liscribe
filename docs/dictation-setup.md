@@ -41,73 +41,25 @@ After granting both, re-run `rec dictate`. You should not see the prompts again.
 A LaunchAgent runs `rec dictate` automatically when you log in, so dictation is always
 available without opening a terminal.
 
-### Create the plist
+### Install the login item
 
-Create `~/Library/LaunchAgents/com.liscribe.dictate.plist`:
+    rec dictate install
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.liscribe.dictate</string>
+This writes:
+- `~/Library/LaunchAgents/com.liscribe.dictate.plist`
+- `~/.local/share/liscribe/dictate.log`
 
-    <key>ProgramArguments</key>
-    <array>
-        <!-- Replace /path/to/liscribe/venv with your actual venv path -->
-        <!-- Run: echo $(which rec) to find it -->
-        <string>/path/to/liscribe/venv/bin/rec</string>
-        <string>dictate</string>
-        <string>--no-sounds</string>
-    </array>
+### Verify status
 
-    <!-- Log stdout and stderr to files you can inspect -->
-    <key>StandardOutPath</key>
-    <string>/tmp/liscribe-dictate.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/liscribe-dictate-error.log</string>
-
-    <!-- Restart automatically if it crashes -->
-    <key>KeepAlive</key>
-    <true/>
-
-    <!-- Wait for login to complete before starting -->
-    <key>RunAtLoad</key>
-    <true/>
-</dict>
-</plist>
-```
-
-Find your `rec` binary path with:
-
-    which rec
-
-### Load the agent
-
-    launchctl load ~/Library/LaunchAgents/com.liscribe.dictate.plist
-
-### Verify it is running
-
-    launchctl list | grep liscribe
-
-You should see a line like `- 0 com.liscribe.dictate`. The `0` exit code means it is
-running.
+    rec dictate status
 
 ### Check logs
 
-    tail -f /tmp/liscribe-dictate.log
-    tail -f /tmp/liscribe-dictate-error.log
-
-### Stop / unload
-
-    launchctl unload ~/Library/LaunchAgents/com.liscribe.dictate.plist
+    tail -f ~/.local/share/liscribe/dictate.log
 
 ### Permanently remove auto-start
 
-    launchctl unload ~/Library/LaunchAgents/com.liscribe.dictate.plist
-    rm ~/Library/LaunchAgents/com.liscribe.dictate.plist
+    rec dictate uninstall
 
 ---
 
@@ -126,5 +78,5 @@ running.
 | Double-tap not detected | Check the hotkey matches your config: `rec config --show` |
 | Wrong hotkey | Change in **Preferences → Dictation**, or `rec dictate --hotkey right_ctrl` |
 | No sound but notifications appear | Expected if `afplay` is unavailable; sounds need macOS built-in `afplay` |
-| LaunchAgent won't start | Run `launchctl list \| grep liscribe`; check error log at `/tmp/liscribe-dictate-error.log` |
+| LaunchAgent won't start | Run `rec dictate status`; check error log at `~/.local/share/liscribe/dictate.log` |
 | Permission granted but still failing | Remove from Input Monitoring, re-add, then re-run |

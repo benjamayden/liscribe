@@ -422,8 +422,8 @@ THINGS TO TEST:
 
 ## Workflow 8: Dictation Mode (rec dictate)
 
-This workflow runs entirely in the terminal — no TUI. Each state below shows what the
-terminal looks like, plus the associated system sound and macOS notification.
+This workflow runs in the terminal by default (no TUI). If floating overlay is enabled,
+you also get a small always-on-top recording panel near the cursor.
 
 Launch:
   $ rec dictate

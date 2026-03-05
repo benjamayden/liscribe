@@ -14,7 +14,7 @@ git clone <repo-url> liscribe
 cd liscribe
 ./install.sh
 ```
-
+TEST TEXT FROM LISCRIBEHello from liscribe dictation testHello from liscribe dictation test
 The installer will:
 
 1. Check and install Homebrew dependencies (PortAudio, optionally BlackHole)
@@ -69,6 +69,10 @@ rec dictate                       # System-wide dictation: double-tap ⌥ to rec
 rec dictate --model tiny          # Use a faster model for dictation
 rec dictate --hotkey right_ctrl   # Use a different trigger key
 rec dictate --no-sounds           # Disable system sounds
+rec dictate --overlay             # Show floating recording overlay near cursor
+rec dictate install               # Install dictation daemon as login item
+rec dictate status                # Show login-item status
+rec dictate uninstall             # Remove login item
 rec --help                        # Full command and option list
 ```
 
@@ -83,14 +87,15 @@ With `-s`, Liscribe records two source tracks (`mic.wav`, `speaker.wav`) and wri
 
 ### Dictation
 
-`rec dictate` runs a persistent listener in your terminal. Double-tap **Right Option (⌥)**
-from any app — browser, Slack, notes — to start recording. Tap it once more to stop. The
-transcript is pasted at the cursor in whatever window is focused.
+`rec dictate` runs a persistent listener (in your terminal, or as a login item). Double-tap **Right Option (⌥)** from any app
+to start recording. Tap it once more to stop. The transcript is pasted at the cursor in
+whatever window is focused.
 
 Feedback while recording:
 - macOS system sounds at each stage (start / stop / paste / error)
 - macOS notification toasts with a preview of the pasted text
 - Live waveform + elapsed timer in the terminal window
+- Optional floating overlay window near the cursor (`--overlay` or `dictation_overlay=true`)
 
 First run: macOS will prompt for **Input Monitoring** and **Accessibility** permissions in
 System Settings → Privacy & Security. Grant both, then re-run.
@@ -98,6 +103,8 @@ System Settings → Privacy & Security. Grant both, then re-run.
 Configure in **Preferences → Dictation** in the TUI, or directly in config.
 
 For permission setup and auto-start, see [docs/dictation-setup.md](docs/dictation-setup.md).
+
+If you see a Liscribe menu bar icon that doesn’t open a menu (e.g. from an old crash), log out and back in (or restart) to clear it; only one instance can own the icon at a time.
 
 ## Models and transcription
 
@@ -120,6 +127,10 @@ Key settings:
 | `dictation_model` | `base` | Whisper model for dictation (`tiny` for fastest response) |
 | `dictation_hotkey` | `right_option` | Trigger key: `right_option`, `right_ctrl`, `right_shift`, `caps_lock` |
 | `dictation_sounds` | `true` | Play macOS system sounds for each dictation stage |
+| `dictation_auto_enter` | `true` | Press Return automatically after paste |
+| `dictation_overlay` | `false` | Show floating recording overlay during dictation |
+| `launch_hotkey` | `null` | Global combo to open recording screen, e.g. `<cmd>+<shift>+r` |
+| `rec_binary_path` | `null` | Auto-detected command path used for launchd and detached spawns |
 
 ## System Requirements
 

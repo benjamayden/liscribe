@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import wave
 from pathlib import Path
@@ -23,6 +22,14 @@ from rich.progress import (
 
 from liscribe import __version__
 from liscribe.config import init_config_if_missing, load_config, CONFIG_PATH
+from liscribe.dictation_launchd import (
+    DICTATE_LOG,
+    PLIST_PATH,
+    get_dictation_agent_status,
+    install_dictation_agent,
+    persist_rec_binary_if_missing,
+    uninstall_dictation_agent,
+)
 from liscribe.logging_setup import setup_logging
 
 console = Console(highlight=False)
@@ -436,10 +443,6 @@ def _run_transcription_pipeline(
             console.print(f"  [dim]Audio kept at: {target}[/dim]")
 
 
-# ---------------------------------------------------------------------------
-# Main command group
-# ---------------------------------------------------------------------------
-
 def _launch_tui(
     land_on: str = "home",
     folder: str | None = None,
@@ -511,6 +514,7 @@ def main(
 ) -> None:
     """Liscribe — 100% offline terminal recorder and transcriber."""
     setup_logging(debug=debug)
+    persist_rec_binary_if_missing()
     ctx.ensure_object(dict)
     ctx.obj["folder"] = folder
     ctx.obj["here"] = here
@@ -603,33 +607,119 @@ main.add_command(transcribe_cmd, "t")
 
 
 # ---------------------------------------------------------------------------
-# dictate subcommand
+# dictate subcommand + install/uninstall/status helpers
 # ---------------------------------------------------------------------------
 
-@main.command(name="dictate")
+def _dictate_install() -> None:
+    import os, sys
+    from liscribe.dictation_launchd import resolve_rec_command
+    ok, out = install_dictation_agent()
+    if ok:
+        console.print("  [green]Dictation daemon installed and started.[/green]")
+        console.print("  It will run automatically at login.")
+        console.print(f"  Log: [dim]{DICTATE_LOG}[/dim]")
+        console.print()
+        # Resolve the actual Python interpreter that will run the daemon
+        rec_args = resolve_rec_command()
+        actual_binary = Path(rec_args[0]).resolve()
+        # If it's a script (rec entry point), follow to the real interpreter
+        try:
+            with open(actual_binary) as f:
+                first_line = f.readline()
+            if first_line.startswith("#!"):
+                interpreter = Path(first_line[2:].strip()).resolve()
+                actual_binary = interpreter
+        except Exception:
+            pass
+        console.print("  [yellow bold]Action required — grant Privacy permissions:[/yellow bold]")
+        console.print("  System Settings → Privacy & Security →")
+        console.print("  [bold]Input Monitoring[/bold]: add the binary below")
+        console.print("  [bold]Accessibility[/bold]: add the binary below")
+        console.print()
+        console.print(f"  [dim]{actual_binary}[/dim]")
+        console.print()
+        console.print("  Drag that file into both permission lists, or use the + button.")
+        console.print("  Then run: [bold]rec dictate install[/bold] again to restart the daemon.")
+    else:
+        console.print(f"  [yellow]Plist written but launchctl load reported:[/yellow] {out or '(no output)'}")
+        console.print(f"  Try: [bold]launchctl load {PLIST_PATH}[/bold]")
+
+
+def _dictate_uninstall() -> None:
+    if not uninstall_dictation_agent():
+        console.print("  [dim]Not installed (no plist found).[/dim]")
+        return
+    console.print("  [green]Dictation daemon uninstalled.[/green]")
+
+
+def _dictate_status() -> None:
+    status = get_dictation_agent_status()
+    if status.running:
+        console.print("  [green]Running[/green]")
+        for line in status.launchctl_output.splitlines():
+            if "PID" in line or "pid" in line.lower():
+                console.print(f"  {line.strip()}")
+    elif status.installed:
+        console.print("  [yellow]Installed but not currently running.[/yellow]")
+    else:
+        console.print("  [dim]Not installed.[/dim]")
+    console.print(f"  Plist: [dim]{PLIST_PATH}[/dim]  {'[green]exists[/green]' if status.installed else '[dim]missing[/dim]'}")
+    console.print(f"  Log:   [dim]{DICTATE_LOG}[/dim]")
+
+
+@main.group(name="dictate", invoke_without_command=True)
 @click.option(
     "--model", "model_size", default=None,
     help="Whisper model (tiny/base/small/medium/large). Overrides dictation_model config.",
 )
 @click.option(
     "--hotkey", default=None,
-    help="Key to double-tap (right_ctrl/left_ctrl/right_shift/caps_lock). Overrides config.",
+    help="Key to double-tap (right_option/right_ctrl/left_ctrl/right_shift/caps_lock). Overrides config.",
 )
 @click.option(
     "--no-sounds", is_flag=True, default=False,
     help="Disable macOS system sounds.",
 )
-def dictate_cmd(model_size: str | None, hotkey: str | None, no_sounds: bool) -> None:
-    """System-wide dictation: double-tap key to record, tap once more to paste transcript."""
+@click.pass_context
+def dictate_cmd(
+    ctx: click.Context,
+    model_size: str | None,
+    hotkey: str | None,
+    no_sounds: bool,
+) -> None:
+    """System-wide dictation daemon. Subcommands: install, uninstall, status."""
+    if ctx.invoked_subcommand is not None:
+        return
+
     from liscribe.dictation import DictationDaemon
 
     cfg = load_config()
+
     daemon = DictationDaemon(
         model_size=model_size or str(cfg.get("dictation_model", "base")),
-        hotkey=hotkey or str(cfg.get("dictation_hotkey", "right_ctrl")),
+        hotkey=hotkey or str(cfg.get("dictation_hotkey", "right_option")),
         sounds=False if no_sounds else bool(cfg.get("dictation_sounds", True)),
+        overlay_enabled=True,
     )
     daemon.run()
+
+
+@dictate_cmd.command(name="install")
+def dictate_install_cmd() -> None:
+    """Install dictation daemon as a macOS login item (via launchd)."""
+    _dictate_install()
+
+
+@dictate_cmd.command(name="uninstall")
+def dictate_uninstall_cmd() -> None:
+    """Uninstall the dictation daemon login item."""
+    _dictate_uninstall()
+
+
+@dictate_cmd.command(name="status")
+def dictate_status_cmd() -> None:
+    """Show whether the dictation daemon is installed and running."""
+    _dictate_status()
 
 
 # ---------------------------------------------------------------------------

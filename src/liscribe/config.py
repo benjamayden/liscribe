@@ -93,6 +93,14 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": True,
         "description": "After pasting dictated text, automatically press Return to submit (e.g. in chat apps). Disable for documents or multi-line composition.",
     },
+    "launch_hotkey": {
+        "value": None,
+        "description": "Global hotkey combo to open the TUI recording screen from any app. Uses pynput GlobalHotKeys format, e.g. '<cmd>+<shift>+r'. Set to null to disable.",
+    },
+    "rec_binary_path": {
+        "value": None,
+        "description": "Absolute path to the rec binary. Auto-detected on first run. Used for launchd integration and background spawning.",
+    },
 }
 
 

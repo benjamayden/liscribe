@@ -15,6 +15,7 @@ DictationDaemon     State machine + listener lifecycle; calls the free functions
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import shutil
 import subprocess
@@ -30,7 +31,8 @@ import numpy as np
 import sounddevice as sd
 from rich.console import Console
 
-from liscribe.config import load_config
+from liscribe.config import load_config, CONFIG_DIR
+from liscribe.dictation_launchd import resolve_rec_command
 from liscribe.recorder import _save_private_wav, get_preferred_mic
 from liscribe.waveform import WaveformMonitor
 
@@ -135,30 +137,65 @@ def _notify(title: str, body: str) -> None:
         logger.debug("_notify failed: %s", exc)
 
 
-def _paste_text(text: str) -> None:
-    """Copy *text* to clipboard, simulate Cmd+V, then restore the original clipboard."""
-    import pyperclip
-    from pynput.keyboard import Controller, Key
+def _check_permissions() -> tuple[bool, bool]:
+    """Return (has_input_monitoring, has_accessibility) by querying macOS APIs."""
+    import ctypes
 
+    has_input_monitoring = False
+    has_accessibility = False
     try:
-        original: str | None = pyperclip.paste()
+        cg = ctypes.cdll.LoadLibrary(
+            "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics"
+        )
+        cg.CGPreflightListenEventAccess.restype = ctypes.c_bool
+        has_input_monitoring = bool(cg.CGPreflightListenEventAccess())
     except Exception:
-        original = None
-
+        pass
     try:
-        pyperclip.copy(text)
-        time.sleep(_CLIPBOARD_SETTLE)
+        ax = ctypes.cdll.LoadLibrary(
+            "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+        )
+        ax.AXIsProcessTrusted.restype = ctypes.c_bool
+        has_accessibility = bool(ax.AXIsProcessTrusted())
+    except Exception:
+        pass
+    return has_input_monitoring, has_accessibility
+
+
+def _paste_text(text: str) -> None:
+    """Copy *text* to clipboard and paste it into the frontmost application.
+
+    Uses osascript (System Events) to send Cmd+V to whatever app is focused.
+    Falls back to pynput Controller if osascript is unavailable.
+    """
+    import pyperclip
+
+    pyperclip.copy(text)
+    time.sleep(_CLIPBOARD_SETTLE)
+
+    pasted = False
+    if _OSASCRIPT is not None:
+        try:
+            result = subprocess.run(
+                [
+                    _OSASCRIPT, "-e",
+                    'tell application "System Events" to keystroke "v" using command down',
+                ],
+                capture_output=True,
+                timeout=3,
+            )
+            pasted = result.returncode == 0
+        except Exception as exc:
+            logger.debug("osascript paste failed: %s", exc)
+
+    if not pasted:
+        from pynput.keyboard import Controller, Key
         kb = Controller()
         with kb.pressed(Key.cmd):
             kb.press("v")
             kb.release("v")
-        time.sleep(_PASTE_LAND)
-    finally:
-        if original is not None:
-            try:
-                pyperclip.copy(original)
-            except Exception:
-                pass
+
+    time.sleep(_PASTE_LAND)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +285,13 @@ class DictationDaemon:
     are invalid — fail fast before any listener is started.
     """
 
-    def __init__(self, model_size: str, hotkey: str, sounds: bool) -> None:
+    def __init__(
+        self,
+        model_size: str,
+        hotkey: str,
+        sounds: bool,
+        overlay_enabled: bool = False,
+    ) -> None:
         from liscribe.transcriber import WHISPER_MODEL_ORDER
 
         if model_size not in WHISPER_MODEL_ORDER:
@@ -264,6 +307,7 @@ class DictationDaemon:
         self._model_size = model_size
         self._hotkey_key = hotkey
         self._sounds = sounds
+        self._overlay_enabled = overlay_enabled
 
         # State machine — all mutations guarded by _state_lock
         self._state = _State.IDLE
@@ -289,12 +333,107 @@ class DictationDaemon:
         self._target_key: Any = None
         self._listener: Any = None
 
+        # Overlay (created lazily when overlay_enabled)
+        self._overlay: Any = None
+
+        # Menu bar (created in run())
+        self._menubar: Any = None
+
+        # Single-instance lock file (held while running with menu bar)
+        self._dictate_lock_file: Any = None
+
+        # State change listeners — callables that receive the new _State value
+        self._state_listeners: list[Any] = []
+
+    # ------------------------------------------------------------------
+    # State listener helpers
+    # ------------------------------------------------------------------
+
+    def _notify_state(self, state: "_State") -> None:
+        """Call all registered state listeners with the new state."""
+        for fn in self._state_listeners:
+            try:
+                fn(state)
+            except Exception as exc:
+                logger.debug("State listener error: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Public control methods (called from menu bar or external code)
+    # ------------------------------------------------------------------
+
+    def shutdown(self) -> None:
+        """Request daemon shutdown — safe to call from any thread."""
+        if self._listener is not None:
+            try:
+                self._listener.stop()
+            except Exception:
+                pass
+        # Stop the AppKit run loop so _shutdown() runs and removes the status item
+        if self._overlay_enabled:
+            try:
+                import AppKit
+                app = AppKit.NSApplication.sharedApplication()
+                app.stop_(None)
+                event = AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    AppKit.NSEventTypeApplicationDefined,
+                    AppKit.NSMakePoint(0, 0),
+                    0, 0, 0, None, 0, 0, 0,
+                )
+                app.postEvent_atStart_(event, True)
+            except Exception as exc:
+                logger.debug("shutdown: NSApp stop failed: %s", exc)
+
+    def _trigger_recording(self) -> None:
+        """Start recording directly (bypasses double-tap) — called from menu bar."""
+        with self._state_lock:
+            if self._state != _State.IDLE:
+                return
+            self._state = _State.RECORDING
+        self._notify_state(_State.RECORDING)
+        threading.Thread(
+            target=self._start_recording,
+            daemon=True,
+            name="dictation-record",
+        ).start()
+
+    def _trigger_stop(self) -> None:
+        """Stop recording — called from menu bar."""
+        with self._state_lock:
+            if self._state != _State.RECORDING:
+                return
+            self._state = _State.TRANSCRIBING
+        self._notify_state(_State.TRANSCRIBING)
+        threading.Thread(
+            target=self._stop_and_transcribe,
+            daemon=True,
+            name="dictation-transcribe",
+        ).start()
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _set_process_name(name: str) -> None:
+        """Rename this process so macOS Privacy dialogs show 'Liscribe' not 'python3.13'."""
+        # setproctitle via ctypes — no new dependency, works on macOS
+        try:
+            import ctypes, ctypes.util
+            libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+            if hasattr(libc, "setprogname"):
+                libc.setprogname(name.encode())
+        except Exception:
+            pass
+        # PyObjC — updates the NSRunningApplication display name seen by System Settings
+        try:
+            from Foundation import NSProcessInfo
+            NSProcessInfo.processInfo().setValue_forKey_(name, "processName")
+        except Exception:
+            pass
+
     def run(self) -> None:
         """Start the daemon — blocks until Ctrl+C."""
+        self._set_process_name("Liscribe")
         try:
             from pynput import keyboard as _kb
         except ImportError:
@@ -324,20 +463,76 @@ class DictationDaemon:
         _console.print(f"  Double-tap [bold]{hotkey_display}[/bold] to start recording.")
         _console.print(f"  Tap [bold]{hotkey_display}[/bold] once more to stop.")
         _console.print("  [dim]Ctrl+C to quit.[/dim]")
+        has_input_mon, has_accessibility = _check_permissions()
         _console.print()
-        _console.print(
-            "  [yellow]Note:[/yellow] Requires [bold]Input Monitoring[/bold] + "
-            "[bold]Accessibility[/bold] in"
-        )
-        _console.print(
-            "  [dim]System Settings \u2192 Privacy & Security.[/dim]"
-        )
-        _console.print()
+        if not has_input_mon or not has_accessibility:
+            _console.print("  [red bold]Permission required:[/red bold]")
+            if not has_input_mon:
+                _console.print(
+                    "  [red]\u2717[/red] [bold]Input Monitoring[/bold] — hotkey won't work"
+                )
+            if not has_accessibility:
+                _console.print(
+                    "  [red]\u2717[/red] [bold]Accessibility[/bold] — paste won't work"
+                )
+            _console.print(
+                "  Open [bold]System Settings \u2192 Privacy & Security[/bold]"
+            )
+            _console.print(
+                "  and add [bold]Terminal[/bold] (or [bold]Liscribe[/bold]) to each list."
+            )
+            _console.print()
+        else:
+            _console.print(
+                "  [green]\u2713[/green] Input Monitoring + Accessibility granted."
+            )
+            _console.print()
 
         try:
             self._listener = _kb.Listener(on_press=self._on_key_press)
             self._listener.start()
-            self._listener.join()
+
+            if self._overlay_enabled:
+                # Single-instance: only one menu bar icon per user
+                lock_path = CONFIG_DIR / "dictate.lock"
+                try:
+                    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                    self._dictate_lock_file = open(lock_path, "w")
+                    fcntl.flock(self._dictate_lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    _console.print(
+                        "[yellow]Another instance of Liscribe is already running.[/yellow]"
+                    )
+                    _console.print(
+                        "  Quit it from its menu bar icon (Liscribe → Quit Liscribe)."
+                    )
+                    _console.print(
+                        "  If you see an icon that doesn't respond, it may be from a crashed run—"
+                    )
+                    _console.print("  log out and back in to clear it.")
+                    if self._dictate_lock_file is not None:
+                        self._dictate_lock_file.close()
+                        self._dictate_lock_file = None
+                    sys.exit(0)
+                # Overlay and menu bar both require the AppKit run loop on the main thread
+                try:
+                    from liscribe.overlay import DictationOverlay
+                    from liscribe.menubar import DictationMenuBar
+                    import AppKit
+                    self._overlay = DictationOverlay()
+                    self._menubar = DictationMenuBar(self)
+                    self._state_listeners.append(self._menubar.update_state)
+                    app = AppKit.NSApplication.sharedApplication()
+                    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyProhibited)
+                    self._menubar.setup()
+                    app.run()
+                except ImportError as exc:
+                    logger.warning("Overlay unavailable (%s) — falling back to terminal mode", exc)
+                    self._overlay_enabled = False
+                    self._listener.join()
+            else:
+                self._listener.join()
+
         except KeyboardInterrupt:
             pass
         except Exception as exc:
@@ -352,11 +547,39 @@ class DictationDaemon:
 
     def _shutdown(self) -> None:
         """Stop listener, release mic stream, join threads, remove temp files."""
+        if self._dictate_lock_file is not None:
+            try:
+                fcntl.flock(self._dictate_lock_file.fileno(), fcntl.LOCK_UN)
+                self._dictate_lock_file.close()
+            except Exception:
+                pass
+            self._dictate_lock_file = None
         if self._listener is not None:
             try:
                 self._listener.stop()
             except Exception:
                 pass
+
+        if self._menubar is not None:
+            try:
+                self._menubar.remove_now()  # already on main thread in finally block
+            except Exception as exc:
+                logger.debug("Menubar remove failed: %s", exc)
+
+        if self._overlay_enabled:
+            try:
+                import AppKit
+                app = AppKit.NSApplication.sharedApplication()
+                app.stop_(None)
+                # Post a dummy event so the run loop wakes and exits
+                event = AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                    AppKit.NSEventTypeApplicationDefined,
+                    AppKit.NSMakePoint(0, 0),
+                    0, 0, 0, None, 0, 0, 0,
+                )
+                app.postEvent_atStart_(event, True)
+            except Exception as exc:
+                logger.debug("NSApp stop failed: %s", exc)
 
         # Pull recorder under lock so we don't race with _start_recording
         with self._state_lock:
@@ -384,12 +607,14 @@ class DictationDaemon:
             return
 
         now = time.monotonic()
+        new_state: _State | None = None
         with self._state_lock:
             state = self._state
             if state == _State.IDLE:
                 if now - self._last_press < DOUBLE_TAP_WINDOW:
                     self._last_press = 0.0
                     self._state = _State.RECORDING
+                    new_state = _State.RECORDING
                     threading.Thread(
                         target=self._start_recording,
                         daemon=True,
@@ -399,12 +624,15 @@ class DictationDaemon:
                     self._last_press = now
             elif state == _State.RECORDING:
                 self._state = _State.TRANSCRIBING
+                new_state = _State.TRANSCRIBING
                 threading.Thread(
                     target=self._stop_and_transcribe,
                     daemon=True,
                     name="dictation-transcribe",
                 ).start()
             # TRANSCRIBING: ignore presses until the cycle completes
+        if new_state is not None:
+            self._notify_state(new_state)
 
     # ------------------------------------------------------------------
     # Recording
@@ -432,6 +660,7 @@ class DictationDaemon:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
 
         # Commit session state under lock now that start() succeeded
@@ -446,6 +675,9 @@ class DictationDaemon:
             f"  [red bold]\u25cf[/red bold] Recording\u2026  "
             f"[dim](tap {hotkey_display} to stop)[/dim]"
         )
+
+        if self._overlay_enabled and self._overlay is not None:
+            self._overlay.show(recorder, hotkey_display)
 
         self._waveform_stop.clear()
         self._waveform_thread = threading.Thread(
@@ -487,6 +719,10 @@ class DictationDaemon:
             self._recorder = None
             tmp_dir = self._tmp_dir
 
+        # Hide overlay before waveform thread exits
+        if self._overlay_enabled and self._overlay is not None:
+            self._overlay.hide()
+
         # Signal waveform thread and wait for a clean exit
         self._waveform_stop.set()
         if self._waveform_thread is not None:
@@ -496,6 +732,7 @@ class DictationDaemon:
         if recorder is None:
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
 
         _play_sound("stop", enabled=self._sounds)
@@ -512,6 +749,7 @@ class DictationDaemon:
             _play_sound("error", enabled=self._sounds)
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
 
         try:
@@ -523,6 +761,7 @@ class DictationDaemon:
             _notify("Error", str(exc)[:80])
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
         finally:
             wav_path.unlink(missing_ok=True)
@@ -532,6 +771,7 @@ class DictationDaemon:
             _play_sound("error", enabled=self._sounds)
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
 
         try:
@@ -543,6 +783,7 @@ class DictationDaemon:
             _play_sound("error", enabled=self._sounds)
             with self._state_lock:
                 self._state = _State.IDLE
+            self._notify_state(_State.IDLE)
             return
 
         # Press Return after paste if auto-enter is enabled.
@@ -550,13 +791,26 @@ class DictationDaemon:
         # Guard: skip if the text already ends with a newline to avoid a double blank line.
         if load_config().get("dictation_auto_enter", True) and not text.endswith("\n"):
             try:
-                from pynput.keyboard import Controller, Key
-                kb = Controller()
-                # Use _PASTE_LAND (0.10s) — the same settle time used for the paste itself —
-                # to ensure the pasted text has landed before Enter fires.
                 time.sleep(_PASTE_LAND)
-                kb.press(Key.enter)
-                kb.release(Key.enter)
+                entered = False
+                if _OSASCRIPT is not None:
+                    try:
+                        result = subprocess.run(
+                            [
+                                _OSASCRIPT, "-e",
+                                'tell application "System Events" to key code 36',
+                            ],
+                            capture_output=True,
+                            timeout=3,
+                        )
+                        entered = result.returncode == 0
+                    except Exception:
+                        pass
+                if not entered:
+                    from pynput.keyboard import Controller, Key
+                    kb = Controller()
+                    kb.press(Key.enter)
+                    kb.release(Key.enter)
             except Exception as exc:
                 logger.debug("Auto-enter failed: %s", exc)
 
@@ -571,6 +825,7 @@ class DictationDaemon:
 
         with self._state_lock:
             self._state = _State.IDLE
+        self._notify_state(_State.IDLE)
 
     def _transcribe(self, wav_path: Path) -> str:
         """Load (or reuse) the whisper model and return transcribed text."""

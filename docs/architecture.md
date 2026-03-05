@@ -25,6 +25,7 @@ graph TD
     subgraph cli_layer [CLI Layer]
         CLI["cli.py - Click commands"]
         Dictation["dictation.py - Hotkey daemon + paste"]
+        DictLaunch["dictation_launchd.py - LaunchAgent + binary resolution"]
     end
 
     subgraph core [Core]
@@ -46,6 +47,7 @@ graph TD
 
     CLI --> App
     CLI --> Dictation
+    CLI --> DictLaunch
     CLI --> Config
     App --> Recorder
     App --> Waveform
@@ -57,6 +59,7 @@ graph TD
     Dictation --> Recorder
     Dictation --> Transcriber
     Dictation --> Clip
+    Dictation --> DictLaunch
 ```
 
 ## Recording Flow
@@ -105,6 +108,7 @@ sequenceDiagram
     participant Rec as _DictationRecorder
     participant Trans as transcriber.py
     participant App as Active application
+    participant Overlay as overlay.py
 
     User->>Daemon: rec dictate
     Daemon->>Listener: Start global key listener (Right Option)
@@ -114,6 +118,9 @@ sequenceDiagram
     Note over Daemon: Double-tap detected within 0.35s window
     Daemon->>Rec: start() — open mic stream
     Note over Rec: Live waveform + timer in terminal
+    opt overlay enabled
+        Daemon->>Overlay: show(recorder, hotkey_display)
+    end
     loop Recording
         Rec->>Rec: Buffer audio chunks
     end
@@ -123,6 +130,10 @@ sequenceDiagram
     Trans-->>Daemon: TranscriptionResult.text
     Daemon->>App: Copy text → Cmd+V → paste at cursor
     Daemon->>App: Restore original clipboard
+    opt launch_hotkey configured
+        User->>Daemon: launch combo
+        Daemon->>CLI: spawn rec --start
+    end
     Note over Daemon: Ready for next double-tap
 ```
 

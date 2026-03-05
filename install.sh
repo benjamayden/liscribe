@@ -168,25 +168,57 @@ WHISPER_DESCS=(
     "~3 GB,   best accuracy, slowest"
 )
 
+# Detect which models are already installed
+already_installed=()
+for i in "${!WHISPER_MODELS[@]}"; do
+    model_name="${WHISPER_MODELS[$i]}"
+    if "$VENV_DIR/bin/python" -c "from liscribe.transcriber import is_model_available; exit(0 if is_model_available('$model_name') else 1)" 2>/dev/null; then
+        already_installed+=("$model_name")
+    fi
+done
+
 echo ""
 echo "  Available whisper models:"
 for i in "${!WHISPER_MODELS[@]}"; do
     model_name="${WHISPER_MODELS[$i]}"
     installed_marker=""
-    if "$VENV_DIR/bin/python" -c "from liscribe.transcriber import is_model_available; exit(0 if is_model_available('$model_name') else 1)" 2>/dev/null; then
-        installed_marker=" ✓"
-    fi
+    for m in "${already_installed[@]+"${already_installed[@]}"}"; do
+        [[ "$m" == "$model_name" ]] && { installed_marker=" ✓ installed"; break; }
+    done
     printf '    %d. %-8s %s%s\n' $((i+1)) "$model_name" "${WHISPER_DESCS[$i]}" "$installed_marker"
 done
 echo ""
-echo "  Enter numbers to download (e.g. 2,4,5 or 2-5 or all)"
 
-default_model=2
+# If models already installed, default is Enter to skip (use existing)
+# If none installed, must pick at least one
+have_installed=0
+if (( ${#already_installed[@]} > 0 )); then
+    have_installed=1
+fi
+
 sorted_indices=()
+skip_models=0
+
+if [[ $have_installed -eq 1 ]]; then
+    echo "  You already have models installed. Press Enter to keep them, or pick numbers to download more."
+    prompt_suffix=" (Enter to skip): "
+else
+    echo "  Enter numbers to download (e.g. 2,4,5 or 2-5 or all)"
+    prompt_suffix=" (default: 2): "
+fi
+
 while true; do
-    read -rp "  Models to download (default: $default_model): " model_choice
-    model_choice="${model_choice:-$default_model}"
-    
+    read -rp "  Models to download${prompt_suffix}" model_choice
+
+    # Enter with no input + already have models → skip
+    if [[ -z "$model_choice" && $have_installed -eq 1 ]]; then
+        skip_models=1
+        break
+    fi
+
+    # Default to base if no models installed and no input
+    model_choice="${model_choice:-2}"
+
     # Parse "1,3,5", "1 3 5", "2-4", "all"
     indices=()
     if [[ "$model_choice" == "all" ]]; then
@@ -194,11 +226,9 @@ while true; do
             indices+=($((i+1)))
         done
     else
-        # Replace commas with spaces, then split
         cleaned="${model_choice//,/ }"
         for part in $cleaned; do
             if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-                # Range like "2-4"
                 start="${BASH_REMATCH[1]}"
                 end="${BASH_REMATCH[2]}"
                 for ((i=start; i<=end; i++)); do
@@ -207,7 +237,6 @@ while true; do
                     fi
                 done
             elif [[ "$part" =~ ^[0-9]+$ ]]; then
-                # Single number
                 num=$((part))
                 if (( num >= 1 && num <= ${#WHISPER_MODELS[@]} )); then
                     indices+=($num)
@@ -215,13 +244,11 @@ while true; do
             fi
         done
     fi
-    
-    # Remove duplicates and sort (no associative arrays — Bash 3.2 / macOS compatible)
+
     if (( ${#indices[@]} > 0 )); then
         unique_indices=()
         for idx in "${indices[@]}"; do
             found=0
-            # Check if idx already in unique_indices (handle empty array case)
             if (( ${#unique_indices[@]} > 0 )); then
                 for u in "${unique_indices[@]}"; do
                     [[ "$u" == "$idx" ]] && { found=1; break; }
@@ -229,71 +256,44 @@ while true; do
             fi
             [[ $found -eq 0 ]] && unique_indices+=($idx)
         done
-        # Sort unique indices
         if (( ${#unique_indices[@]} > 0 )); then
             IFS=$'\n' sorted_indices=($(sort -n <<<"${unique_indices[*]}"))
             unset IFS
-        else
-            sorted_indices=()
         fi
         if (( ${#sorted_indices[@]} > 0 )); then
             break
         fi
     fi
-    
+
     warn "Enter numbers (e.g. 2,4,5 or 2-5 or all)"
 done
 
-# Convert indices to model names
+# Build to_download list
 to_download=()
-for idx in "${sorted_indices[@]}"; do
+for idx in "${sorted_indices[@]+"${sorted_indices[@]}"}"; do
     to_download+=("${WHISPER_MODELS[$((idx-1))]}")
 done
 
-# Prompt for default model
-default_idx=$default_model
-# Check if default is in selection (Bash 3.2 compatible)
-default_in_selection=0
-for idx in "${sorted_indices[@]}"; do
-    if [[ "$idx" == "$default_idx" ]]; then
-        default_in_selection=1
-        break
-    fi
-done
-if [[ $default_in_selection -eq 1 ]]; then
-    # Default is in the selection, use it
-    chosen_model="${WHISPER_MODELS[$((default_idx-1))]}"
+# Determine chosen_model (default for config)
+if [[ $skip_models -eq 1 ]]; then
+    # Use the best already-installed model as default (Bash 3.x-safe: no negative subscript)
+    chosen_model="${already_installed[${#already_installed[@]}-1]}"
+    # Prefer base if installed
+    for m in "${already_installed[@]}"; do
+        [[ "$m" == "base" ]] && { chosen_model="base"; break; }
+    done
+    ok "Keeping existing models (${already_installed[*]})"
 else
-    # Default not in selection, prompt
-    echo ""
-    echo "  Which model as default for recordings?"
+    # Use first selected model as default (or base if in list)
+    chosen_model="${WHISPER_MODELS[$((sorted_indices[0]-1))]}"
     for idx in "${sorted_indices[@]}"; do
-        printf '    %d. %s\n' "$idx" "${WHISPER_MODELS[$((idx-1))]}"
+        [[ "${WHISPER_MODELS[$((idx-1))]}" == "base" ]] && { chosen_model="base"; break; }
     done
-    while true; do
-        read -rp "  Default model (number): " default_choice
-        if [[ "$default_choice" =~ ^[0-9]+$ ]]; then
-            # Check if choice is in selection
-            choice_in_selection=0
-            for idx in "${sorted_indices[@]}"; do
-                if [[ "$idx" == "$default_choice" ]]; then
-                    choice_in_selection=1
-                    break
-                fi
-            done
-            if [[ $choice_in_selection -eq 1 ]]; then
-                chosen_model="${WHISPER_MODELS[$((default_choice-1))]}"
-                break
-            fi
-        fi
-        warn "Enter a number from your selection"
-    done
-fi
-
-if (( ${#to_download[@]} == 1 )); then
-    ok "Model: ${to_download[0]}"
-else
-    ok "Models: ${to_download[*]}"
+    if (( ${#to_download[@]} == 1 )); then
+        ok "Model: ${to_download[0]}"
+    else
+        ok "Models: ${to_download[*]}"
+    fi
 fi
 
 echo ""
@@ -365,11 +365,83 @@ if [[ -n "$alias_name" ]]; then
     ok "Added to $SHELL_RC: $ALIAS_LINE"
 fi
 
-# ── 6. Download whisper models ────────────────────────────────────────────────
+# ── 6. Dictation setup ───────────────────────────────────────────────────────
+
+info "Dictation"
+
+echo ""
+echo "  Liscribe has two modes:"
+echo ""
+echo "    Recording  — open the app, record, get a transcript file saved to disk"
+echo "    Dictation  — double-tap a key anywhere on your Mac, speak, and the"
+echo "                 text is typed for you automatically in whatever app is open"
+echo ""
+echo "  Dictation runs silently in the background — no terminal window needed."
+echo ""
+read -rp "  Enable dictation (runs at login, works everywhere)? [y/N] " dictation_yn
+
+if [[ "$dictation_yn" == [yY] ]]; then
+    echo ""
+    echo "  Installing dictation daemon..."
+    "$VENV_DIR/bin/rec" dictate install >/dev/null 2>&1 || true
+    ok "Dictation daemon installed (login item created)"
+
+    # The daemon runs as the Python binary in the venv — macOS tracks permissions
+    # per-binary. We need to grant Input Monitoring + Accessibility to that binary.
+    PYTHON_BIN="$(cd "$VENV_DIR/bin" && pwd)/python3"
+    if [[ ! -f "$PYTHON_BIN" ]]; then
+        PYTHON_BIN="$VENV_DIR/bin/python"
+    fi
+    # Resolve symlink to real binary (macOS TCC checks the resolved path)
+    PYTHON_REAL="$(python3 -c "import os,sys; print(os.path.realpath('$PYTHON_BIN'))" 2>/dev/null || echo "$PYTHON_BIN")"
+
+    echo ""
+    warn "Two permissions are required for dictation to work."
+    echo ""
+    echo "  The dictation daemon runs as:"
+    echo "    $PYTHON_REAL"
+    echo ""
+    echo "  macOS must allow that binary to monitor keys and paste text."
+    echo ""
+    echo "  ── Step 1 of 2: Accessibility ──────────────────────────────────────────"
+    echo ""
+    echo "  Opening System Settings → Privacy & Security → Accessibility."
+    echo "  Click + , press Cmd+Shift+G, paste the path above, and click Open."
+    echo ""
+    open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" 2>/dev/null || true
+    echo ""
+    read -rp "  Press Enter once you have added the binary to Accessibility: " _
+    echo ""
+    echo "  ── Step 2 of 2: Input Monitoring ───────────────────────────────────────"
+    echo ""
+    echo "  Opening System Settings → Privacy & Security → Input Monitoring."
+    echo "  Click + , press Cmd+Shift+G, paste the path above, and click Open."
+    echo ""
+    open "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent" 2>/dev/null || true
+    echo ""
+    read -rp "  Press Enter once you have added the binary to Input Monitoring: " _
+
+    # Restart daemon so it picks up the new permissions
+    "$VENV_DIR/bin/rec" dictate install >/dev/null 2>&1 || true
+    ok "Dictation daemon restarted"
+
+    echo ""
+    ok "Dictation is active. Now test it:"
+    echo ""
+    echo "    Double-tap Right Option (⌥) anywhere on your Mac and speak."
+    echo "    A small overlay appears near your cursor while recording."
+    echo "    Tap Right Option (⌥) once to stop — your text is pasted instantly."
+    echo ""
+    echo "  Change the hotkey anytime in: rec preferences → Dictation"
+else
+    ok "Dictation skipped — enable anytime in: rec preferences → Dictation"
+fi
+
+# ── 7. Download whisper models ────────────────────────────────────────────────
 
 info "Whisper models"
 
-if (( ${#to_download[@]} == 0 )); then
+if [[ $skip_models -eq 1 ]] || (( ${#to_download[@]} == 0 )); then
     warn "No models selected — skipping download"
 else
     models_str="${to_download[*]}"
@@ -398,7 +470,7 @@ load_model('$model_name')
     fi
 fi
 
-# ── 7. Done ──────────────────────────────────────────────────────────────────
+# ── 8. Done ──────────────────────────────────────────────────────────────────
 
 echo ""
 info "Installation complete!"

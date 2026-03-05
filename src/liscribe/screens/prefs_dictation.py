@@ -8,12 +8,18 @@ where button-style selections take effect instantly.
 from __future__ import annotations
 
 import logging
+import subprocess
 
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Button, Static, Switch
 
 from liscribe.config import load_config, save_config
-from liscribe.dictation import VALID_HOTKEYS
+from liscribe.dictation import VALID_HOTKEYS, _check_permissions
+from liscribe.dictation_launchd import (
+    get_dictation_agent_status,
+    install_dictation_agent,
+    uninstall_dictation_agent,
+)
 from liscribe.screens.base import BackScreen
 from liscribe.screens.top_bar import TopBar
 from liscribe.transcriber import WHISPER_MODEL_ORDER, is_model_available
@@ -110,12 +116,37 @@ class PrefsDictationScreen(BackScreen):
 
                 yield Static("")
 
+                # ── Login item (launchd) ───────────────────────────────
+                daemon_status = Static(
+                    "  Checking\u2026",
+                    id="daemon-status",
+                )
+                daemon_status.border_title = "Login item"
+                daemon_status.border_subtitle = "Runs automatically at login, no terminal needed"
+                with Horizontal(classes="top-container"):
+                    yield daemon_status
+
+                with Horizontal(classes="hug-container"):
+                    yield Button(
+                        "Install",
+                        id="btn-daemon-install",
+                        classes="btn btn-primary btn-inline",
+                    )
+                    yield Button(
+                        "Uninstall",
+                        id="btn-daemon-uninstall",
+                        classes="btn btn-secondary btn-inline",
+                    )
+
+                yield Static("")
+
                 # ── Usage note ─────────────────────────────────────────
                 usage_note = Static(
-                    f"  Run [bold]{alias} dictate[/bold] in a terminal to start the dictation daemon.",
+                    f"  Run [bold]{alias} dictate[/bold] in a terminal  \u00b7  "
+                    f"[bold]{alias} dictate status[/bold] to check daemon",
                     id="dictation-usage-note",
                 )
-                usage_note.border_title = "How to use dictation"
+                usage_note.border_title = "Manual usage"
                 with Horizontal(classes="top-container"):
                     yield usage_note
 
@@ -129,6 +160,22 @@ class PrefsDictationScreen(BackScreen):
 
     def on_mount(self) -> None:
         self._refresh_models()
+        self._refresh_daemon_status()
+
+    def _refresh_daemon_status(self) -> None:
+        try:
+            label = self.query_one("#daemon-status", Static)
+        except Exception:
+            return
+
+        status = get_dictation_agent_status()
+
+        if status.running:
+            label.update("  [green]\u25cf Running[/green] — dictation daemon is active")
+        elif status.installed:
+            label.update("  [yellow]\u25cb Installed but not running[/yellow]")
+        else:
+            label.update("  [dim]\u25cb Not installed[/dim]")
 
     def _refresh_models(self) -> None:
         cfg = load_config()
@@ -181,6 +228,56 @@ class PrefsDictationScreen(BackScreen):
 
         if bid == "btn-back":
             self.action_back()
+            return
+
+        if bid == "btn-daemon-install":
+            try:
+                ok, out = install_dictation_agent()
+                if not ok:
+                    self.notify(
+                        f"Install wrote plist but launchctl failed: {out or 'no output'}",
+                        severity="error",
+                    )
+                    self._refresh_daemon_status()
+                    return
+            except Exception as exc:
+                self.notify(f"Install failed: {exc}", severity="error")
+                self._refresh_daemon_status()
+                return
+
+            has_input_mon, has_accessibility = _check_permissions()
+            if not has_input_mon or not has_accessibility:
+                import sys
+                python_bin = str(sys.executable)
+                if not has_accessibility:
+                    subprocess.Popen(
+                        ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                if not has_input_mon:
+                    subprocess.Popen(
+                        ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                self.notify(
+                    f"System Settings opened. In each list click + → Cmd+Shift+G → paste:\n{python_bin}\nThen click Install again.",
+                    timeout=15,
+                )
+            else:
+                self.notify("Dictation daemon installed — active at login.")
+            self._refresh_daemon_status()
+            return
+
+        if bid == "btn-daemon-uninstall":
+            try:
+                removed = uninstall_dictation_agent()
+                if removed:
+                    self.notify("Dictation daemon uninstalled.")
+                else:
+                    self.notify("No login item found.")
+            except Exception as exc:
+                self.notify(f"Uninstall failed: {exc}", severity="error")
+            self._refresh_daemon_status()
             return
 
         # Model selection — save immediately

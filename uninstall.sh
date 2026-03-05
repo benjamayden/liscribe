@@ -24,6 +24,9 @@ detect_shell_rc() {
     esac
 }
 
+DICTATE_PLIST="$HOME/Library/LaunchAgents/com.liscribe.dictate.plist"
+DICTATE_LOG_DIR="$HOME/.local/share/liscribe"
+
 echo ""
 info "Liscribe uninstaller"
 echo ""
@@ -32,6 +35,9 @@ echo "    - Python venv        ($VENV_DIR)"
 echo "    - Config directory   ($CONFIG_DIR)"
 echo "    - Model cache        ($CACHE_DIR)"
 echo "    - Shell alias from   $(detect_shell_rc)"
+if [[ -f "$DICTATE_PLIST" ]]; then
+echo "    - Dictation daemon   ($DICTATE_PLIST)"
+fi
 echo ""
 read -rp "  Continue? [y/N] " confirm
 if [[ "$confirm" != [yY] ]]; then
@@ -93,7 +99,24 @@ else
     warn "Shell config $SHELL_RC not found — skipping"
 fi
 
-# ── 5. Optionally remove Homebrew dependencies ──────────────────────────────
+# ── 5. Dictation daemon ─────────────────────────────────────────────────────
+
+info "Dictation daemon"
+
+if [[ -f "$DICTATE_PLIST" ]]; then
+    launchctl unload "$DICTATE_PLIST" 2>/dev/null || true
+    rm -f "$DICTATE_PLIST"
+    ok "Stopped and removed dictation login item"
+else
+    ok "No dictation login item found"
+fi
+
+if [[ -d "$DICTATE_LOG_DIR" ]]; then
+    rm -rf "$DICTATE_LOG_DIR"
+    ok "Removed dictation log directory ($DICTATE_LOG_DIR)"
+fi
+
+# ── 6. Optionally remove Homebrew dependencies ──────────────────────────────
 
 info "Homebrew dependencies"
 
