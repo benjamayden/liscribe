@@ -11,8 +11,6 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-import yaml
-
 from liscribe.notes import Note
 from liscribe.transcriber import TranscriptionResult
 
@@ -164,8 +162,17 @@ def build_markdown(
         "model": model_name,
     }
 
+    def _format_front_matter(d: dict) -> str:
+        out = []
+        for k, v in d.items():
+            if isinstance(v, str):
+                out.append(f"{k}: {v!r}" if ":" in v or "\n" in v else f"{k}: {v}")
+            else:
+                out.append(f"{k}: {v}")
+        return "\n".join(out)
+
     lines = ["---"]
-    lines.append(yaml.dump(front_matter, default_flow_style=False, sort_keys=False).strip())
+    lines.append(_format_front_matter(front_matter))
     lines.append("---")
     lines.append("")
     lines.append("## Transcript")
