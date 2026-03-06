@@ -20,8 +20,12 @@ from typing import Any
 import rumps
 import webview
 
+import AppKit
+
 from liscribe.bridge.scribe_bridge import ScribeBridge
+from liscribe.bridge.transcribe_bridge import TranscribeBridge
 from liscribe.controllers.scribe_controller import ScribeController
+from liscribe.controllers.transcribe_controller import TranscribeController
 from liscribe.services.audio_service import AudioService
 from liscribe.services.config_service import ConfigService
 from liscribe.services.hotkey_service import HotkeyService
@@ -64,13 +68,21 @@ class LiscribleApp(rumps.App):
         self._model = model
         self._hotkey = hotkey
 
+        # Transcribe controller + bridge (Phase 5).
+        self._transcribe_ctrl = TranscribeController(config=config, model=model)
+        self._transcribe_bridge = TranscribeBridge(
+            controller=self._transcribe_ctrl, model=model, config=config
+        )
+
         # Scribe controller + bridge — one instance for the app lifetime.
-        # The controller is reset between sessions; the bridge is stateless.
         self._scribe_ctrl = ScribeController(
             audio=audio, model=model, config=config
         )
         self._scribe_bridge = ScribeBridge(
-            controller=self._scribe_ctrl, model=model, audio=audio
+            controller=self._scribe_ctrl,
+            model=model,
+            audio=audio,
+            on_open_transcribe=self._open_transcribe_with_prefill,
         )
 
         # name → open webview.Window (None-entry means window was closed)
@@ -100,6 +112,9 @@ class LiscribleApp(rumps.App):
         js_api: object | None = None,
     ) -> None:
         """Open a named panel, raising it if already open."""
+        # Bring app to front so the panel surfaces above other windows (e.g. terminal).
+        AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+
         existing = self._panels.get(name)
         if existing is not None:
             try:
@@ -125,10 +140,25 @@ class LiscribleApp(rumps.App):
         window.events.closed += _on_closed
         self._panels[name] = window
 
+        # We use guilib.create_window() without webview.start(), so window._initialize()
+        # is never run. Set the attributes that Cocoa/inject_pywebview need. Full
+        # _initialize() breaks run_js (GUI is not initialized) due to init order.
+        if not hasattr(window, "localization"):
+            from webview.localization import original_localization
+            window.localization = original_localization.copy()
+        if not hasattr(window, "js_api_endpoint"):
+            window.js_api_endpoint = None
+        if window.gui is None:
+            window.gui = webview.guilib
+
         # guilib.create_window() checks isRunning() on BrowserView.app
         # (= NSApplication.sharedApplication()) and skips app.run() since
         # rumps already started the event loop.
         webview.guilib.create_window(window)
+
+        # Phase 5: Transcribe bridge needs window reference for file/folder dialogs.
+        if name == "transcribe" and js_api is not None and hasattr(js_api, "set_window"):
+            js_api.set_window(window)
 
     # ------------------------------------------------------------------
     # Menu callbacks
@@ -174,7 +204,25 @@ class LiscribleApp(rumps.App):
         self._open_panel("dictate", "Dictate", width=320, height=100, resizable=False)
 
     def open_transcribe(self, _: Any = None) -> None:
-        self._open_panel("transcribe", "Transcribe", width=560, height=520)
+        self._open_panel(
+            "transcribe",
+            "Transcribe",
+            width=560,
+            height=520,
+            js_api=self._transcribe_bridge,
+        )
+
+    def _open_transcribe_with_prefill(
+        self, audio_path: str, output_folder: str | None = None
+    ) -> None:
+        """Open the Transcribe panel with audio path and output folder pre-filled (e.g. from Scribe)."""
+        self._transcribe_ctrl.set_prefill(
+            audio_path=audio_path,
+            output_folder=output_folder or self._config.save_folder,
+        )
+        # Force a fresh panel so get_initial_state() returns the new prefill on load.
+        self._panels.pop("transcribe", None)
+        self.open_transcribe()
 
     def open_settings(self, _: Any = None) -> None:
         self._open_panel("settings", "Settings", width=560, height=580)

@@ -166,6 +166,7 @@
   let waveformInterval = null;
   let progressInterval = null;
   let pendingWavPath   = null;
+  let pendingSaveFolder = null;
   let isRecording      = true;
 
   // ── Helpers ──────────────────────────────────────────────────────────
@@ -396,7 +397,7 @@
 
   el('open-transcribe-btn').addEventListener('click', async function () {
     if (pendingWavPath) {
-      await pywebview.api.open_in_transcribe(pendingWavPath);
+      await pywebview.api.open_in_transcribe(pendingWavPath, pendingSaveFolder || undefined);
     }
     window.close();
   });
@@ -418,6 +419,7 @@
 
       if (result.is_no_model_mode) {
         pendingWavPath = result.wav_path;
+        pendingSaveFolder = result.save_folder || null;
         el('no-model-wav-path').textContent = result.wav_path || '';
         showView('view-no-model');
         return;

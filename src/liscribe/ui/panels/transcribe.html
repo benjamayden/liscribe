@@ -5,20 +5,280 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Transcribe</title>
   <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+    .path-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .path-display { flex: 1; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--bg-input); padding: 8px 10px; border-radius: var(--radius-sm); }
+    .path-display.empty { color: var(--text-muted); }
+    .model-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .model-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+    .view { display: none; flex-direction: column; height: 100%; }
+    .view.active { display: flex; }
+    .error-msg { color: var(--accent); font-size: 12px; margin-top: 4px; display: none; }
+    .error-msg.visible { display: block; }
+    .model-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .model-progress-row .model-name { min-width: 60px; font-size: 12px; font-weight: 500; }
+    .model-progress-row .progress-track { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+    .model-progress-row .progress-fill { height: 100%; background: var(--accent-blue); transition: width 0.2s; }
+    .model-progress-row .progress-label { min-width: 52px; font-size: 11px; color: var(--text-muted); text-align: right; }
+    .file-path-line { font-size: 11px; color: var(--text-muted); word-break: break-all; margin-top: 2px; margin-bottom: 8px; }
+    .open-transcript-btn { margin-top: 4px; font-size: 12px; }
+    .header-close { visibility: hidden; }
+    .header-close.visible { visibility: visible; }
+  </style>
 </head>
 <body>
-  <div class="panel-header">
-    <span class="panel-title">Transcribe</span>
+
+  <!-- Input view -->
+  <div id="view-input" class="view active">
+    <div class="panel-header">
+      <span class="panel-title">Transcribe</span>
+      <span id="header-close" class="header-close">✕</span>
+    </div>
+    <div class="panel-body">
+      <div class="section-label">Audio file</div>
+      <div class="path-row">
+        <div id="audio-path-display" class="path-display empty">No file selected</div>
+        <button type="button" class="btn btn-secondary" id="browse-file-btn">Browse</button>
+      </div>
+      <p id="file-error" class="error-msg"></p>
+
+      <div class="section-label">Output folder</div>
+      <div class="path-row">
+        <div id="output-folder-display" class="path-display">~/transcripts</div>
+        <button type="button" class="btn btn-secondary" id="browse-folder-btn">Browse</button>
+      </div>
+
+      <div class="section-label" style="margin-top:14px">Models</div>
+      <div id="model-checkboxes" class="model-row"></div>
+
+      <div style="margin-top:20px">
+        <button type="button" class="btn btn-primary btn-full" id="transcribe-btn" disabled>Transcribe</button>
+      </div>
+    </div>
   </div>
 
-  <div class="panel-body">
-    <p class="label" style="text-align:center;padding:40px 0;">
-      Transcribe panel — implemented in Phase 5
-    </p>
+  <!-- In-progress view -->
+  <div id="view-progress" class="view">
+    <div class="panel-header">
+      <span class="panel-title">Transcribing…</span>
+    </div>
+    <div class="panel-body">
+      <p id="progress-filename" class="section-label" style="margin-bottom:12px"></p>
+      <div id="progress-list"></div>
+    </div>
   </div>
 
-  <div class="panel-footer">
-    <button class="btn btn-primary btn-full" disabled>Transcribe</button>
+  <!-- Complete view -->
+  <div id="view-done" class="view">
+    <div class="panel-header">
+      <span class="panel-title">Transcribe — Done</span>
+      <span id="done-close" class="header-close visible">✕</span>
+    </div>
+    <div class="panel-body">
+      <p id="done-filename" class="section-label" style="margin-bottom:12px"></p>
+      <div id="done-list"></div>
+    </div>
   </div>
+
+<script>
+  (function () {
+    const POLL_MS = 400;
+    let progressInterval = null;
+    let currentAudioPath = null;
+    let currentFilename = '';
+
+    function el(id) { return document.getElementById(id); }
+    function clearChildren(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      el(viewId).classList.add('active');
+      if (viewId === 'view-input') el('header-close').classList.remove('visible');
+      else if (viewId === 'view-done') el('header-close').classList.add('visible');
+    }
+
+    async function loadInitialState() {
+      try {
+        const state = await pywebview.api.get_initial_state();
+        if (state.audio_path) {
+          currentAudioPath = state.audio_path;
+          currentFilename = state.audio_path.split('/').pop() || state.audio_path;
+          el('audio-path-display').textContent = state.audio_path;
+          el('audio-path-display').classList.remove('empty');
+          el('transcribe-btn').disabled = false;
+          const res = await pywebview.api.set_audio_path(state.audio_path);
+          if (!res.ok) { el('file-error').textContent = res.error; el('file-error').classList.add('visible'); }
+        }
+        if (state.output_folder) {
+          el('output-folder-display').textContent = state.output_folder;
+          await pywebview.api.set_output_folder(state.output_folder);
+        }
+      } catch (err) { console.error('get_initial_state:', err); }
+    }
+
+    async function loadModels() {
+      try {
+        const models = await pywebview.api.get_models();
+        const container = el('model-checkboxes');
+        clearChildren(container);
+        models.forEach(m => {
+          const label = document.createElement('label');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!m.is_selected;
+          cb.dataset.name = m.name;
+          cb.addEventListener('change', updateSelectedModels);
+          label.appendChild(cb);
+          label.appendChild(document.createTextNode(m.name));
+          container.appendChild(label);
+        });
+        updateSelectedModels();
+      } catch (err) { console.error('get_models:', err); }
+    }
+
+    async function updateSelectedModels() {
+      const names = Array.from(el('model-checkboxes').querySelectorAll('input:checked')).map(c => c.dataset.name);
+      await pywebview.api.set_models(names);
+    }
+
+    function renderProgressList(progress) {
+      const list = el('progress-list');
+      clearChildren(list);
+      progress.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'model-progress-row';
+        row.id = 'prog-' + p.model_name;
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = p.model_name;
+        const track = document.createElement('div');
+        track.className = 'progress-track';
+        const fill = document.createElement('div');
+        fill.className = 'progress-fill';
+        fill.id = 'fill-' + p.model_name;
+        fill.style.width = (p.progress * 100) + '%';
+        track.appendChild(fill);
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'progress-label';
+        labelSpan.id = 'label-' + p.model_name;
+        labelSpan.textContent = p.is_done ? 'done ✓' : (Math.round(p.progress * 100) + '%');
+        row.appendChild(nameSpan);
+        row.appendChild(track);
+        row.appendChild(labelSpan);
+        list.appendChild(row);
+        const pathLine = document.createElement('div');
+        pathLine.className = 'file-path-line';
+        pathLine.id = 'path-' + p.model_name;
+        if (p.md_path) pathLine.textContent = p.md_path;
+        list.appendChild(pathLine);
+      });
+    }
+
+    async function pollProgress() {
+      try {
+        const progress = await pywebview.api.get_progress();
+        let allDone = progress.length > 0;
+        progress.forEach(p => {
+          const fillEl = el('fill-' + p.model_name);
+          const labelEl = el('label-' + p.model_name);
+          const pathEl = el('path-' + p.model_name);
+          if (fillEl) fillEl.style.width = (p.progress * 100) + '%';
+          if (labelEl) {
+            if (p.error) labelEl.textContent = 'error';
+            else if (p.is_done) labelEl.textContent = 'done ✓';
+            else labelEl.textContent = Math.round(p.progress * 100) + '%';
+          }
+          if (pathEl && p.md_path) pathEl.textContent = p.md_path;
+          if (!p.is_done) allDone = false;
+        });
+        if (allDone) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+          showDoneView(progress);
+        }
+      } catch (err) { console.error('pollProgress:', err); }
+    }
+
+    function showDoneView(progress) {
+      el('done-filename').textContent = currentFilename;
+      const list = el('done-list');
+      clearChildren(list);
+      progress.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'model-progress-row';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = p.model_name;
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'progress-label';
+        labelSpan.textContent = p.is_done && !p.error ? 'done ✓' : (p.error || '—');
+        row.appendChild(nameSpan);
+        row.appendChild(labelSpan);
+        list.appendChild(row);
+        const pathLine = document.createElement('div');
+        pathLine.className = 'file-path-line';
+        pathLine.textContent = p.md_path || (p.error || '');
+        list.appendChild(pathLine);
+        if (p.md_path) {
+          const openBtn = document.createElement('button');
+          openBtn.type = 'button';
+          openBtn.className = 'btn btn-secondary open-transcript-btn';
+          openBtn.textContent = 'Open Transcript';
+          openBtn.addEventListener('click', () => pywebview.api.open_transcript(p.md_path));
+          list.appendChild(openBtn);
+        }
+      });
+      showView('view-done');
+    }
+
+    el('browse-file-btn').addEventListener('click', async function () {
+      const path = await pywebview.api.pick_file();
+      if (!path) return;
+      const res = await pywebview.api.set_audio_path(path);
+      el('file-error').classList.remove('visible');
+      if (res.ok) {
+        currentAudioPath = path;
+        currentFilename = path.split('/').pop() || path;
+        el('audio-path-display').textContent = path;
+        el('audio-path-display').classList.remove('empty');
+        el('transcribe-btn').disabled = false;
+      } else {
+        el('file-error').textContent = res.error || 'Invalid file';
+        el('file-error').classList.add('visible');
+      }
+    });
+
+    el('browse-folder-btn').addEventListener('click', async function () {
+      const path = await pywebview.api.pick_folder();
+      if (!path) return;
+      await pywebview.api.set_output_folder(path);
+      el('output-folder-display').textContent = path;
+    });
+
+    el('transcribe-btn').addEventListener('click', async function () {
+      const res = await pywebview.api.transcribe();
+      el('file-error').classList.remove('visible');
+      if (!res.ok) {
+        el('file-error').textContent = res.error || 'Transcription failed';
+        el('file-error').classList.add('visible');
+        return;
+      }
+      showView('view-progress');
+      el('progress-filename').textContent = currentFilename;
+      const progress = await pywebview.api.get_progress();
+      renderProgressList(progress);
+      progressInterval = setInterval(pollProgress, POLL_MS);
+    });
+
+    el('header-close').addEventListener('click', function () { window.close(); });
+    el('done-close').addEventListener('click', function () { window.close(); });
+
+    window.addEventListener('load', async () => {
+      await loadInitialState();
+      await loadModels();
+    });
+  })();
+</script>
 </body>
 </html>

@@ -357,13 +357,17 @@ class RecordingSession:
             print(f"Speaker capture via: {self.blackhole_name}")
         print("Press Ctrl+C to stop and save.\n")
 
-        # Handle Ctrl+C
-        original_sigint = signal.getsignal(signal.SIGINT)
+        # Handle Ctrl+C only from the main thread (signal.signal is main-thread-only).
+        # When run from the GUI, recording runs in a worker thread; stop() sets
+        # _stop_requested from the main thread instead.
+        original_sigint = None
+        if threading.current_thread() is threading.main_thread():
+            original_sigint = signal.getsignal(signal.SIGINT)
 
-        def _handle_sigint(signum: int, frame: Any) -> None:
-            self._stop_requested.set()
+            def _handle_sigint(signum: int, frame: Any) -> None:
+                self._stop_requested.set()
 
-        signal.signal(signal.SIGINT, _handle_sigint)
+            signal.signal(signal.SIGINT, _handle_sigint)
 
         try:
             while not self._stop_requested.is_set():
@@ -373,7 +377,8 @@ class RecordingSession:
                 print(f"\r  ● REC  {hrs:02d}:{mins:02d}:{secs:02d}", end="", flush=True)
                 time.sleep(0.5)
         finally:
-            signal.signal(signal.SIGINT, original_sigint)
+            if threading.current_thread() is threading.main_thread() and original_sigint is not None:
+                signal.signal(signal.SIGINT, original_sigint)
 
         return self._stop_and_save()
 

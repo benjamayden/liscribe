@@ -10,7 +10,7 @@ function on the ``window.pywebview.api`` namespace.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from liscribe.controllers.scribe_controller import ScribeController
@@ -32,10 +32,12 @@ class ScribeBridge:
         controller: ScribeController,
         model: ModelService,
         audio: AudioService,
+        on_open_transcribe: Callable[[str, str | None], None] | None = None,
     ) -> None:
         self._controller = controller
         self._model = model
         self._audio = audio
+        self._on_open_transcribe = on_open_transcribe
 
     # ------------------------------------------------------------------
     # Device / model queries
@@ -178,12 +180,9 @@ class ScribeBridge:
     # Cross-panel navigation
     # ------------------------------------------------------------------
 
-    def open_in_transcribe(self, wav_path: str) -> None:
-        """Signal the app to open the Transcribe panel with wav_path pre-filled.
-
-        # TODO Phase 5: implement pre-filling once TranscribeBridge exists.
-        """
-        logger.info(
-            "open_in_transcribe requested for: %s (Phase 5 will wire this up)",
-            wav_path,
-        )
+    def open_in_transcribe(self, wav_path: str, save_folder: str | None = None) -> None:
+        """Signal the app to open the Transcribe panel with wav_path (and optional save_folder) pre-filled."""
+        if self._on_open_transcribe is not None:
+            self._on_open_transcribe(wav_path, save_folder)
+        else:
+            logger.info("open_in_transcribe requested for %s (no callback wired)", wav_path)

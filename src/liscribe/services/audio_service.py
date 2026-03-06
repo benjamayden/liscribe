@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -71,8 +73,16 @@ class AudioService:
         self._thread.start()
 
     def _run(self) -> None:
-        if self._session is not None:
-            self._wav_path = self._session.start()
+        if self._session is None:
+            return
+        # Suppress recorder CLI print() when running from GUI (engine is frozen).
+        with open(os.devnull, "w") as devnull:
+            old_stdout, old_stderr = sys.stdout, sys.stderr
+            try:
+                sys.stdout = sys.stderr = devnull
+                self._wav_path = self._session.start()
+            finally:
+                sys.stdout, sys.stderr = old_stdout, old_stderr
 
     def stop(self) -> str | None:
         """Signal the active session to stop and wait for the WAV to be saved.

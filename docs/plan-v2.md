@@ -19,8 +19,8 @@
 | 1 | Strip to engine foundation | ✅ Done — 53 tests passing |
 | 2 | Architecture + scaffold | ✅ Done — scaffold in place, 53 tests passing |
 | 3 | Menu bar + panel skeleton | ✅ Done — app.py + services + panel stubs, 53 tests passing |
-| 4 | Scribe workflow | ⚠️ Implemented — review FAIL, fixes pending |
-| 5 | Transcribe workflow | ⬜ |
+| 4 | Scribe workflow | ✅ Implemented + fixes applied — 246 tests passing |
+| 5 | Transcribe workflow | ⬜ Next |
 | 6 | Dictate workflow | ⬜ |
 | 7 | Settings | ⬜ |
 | 8 | Onboarding | ⬜ |
