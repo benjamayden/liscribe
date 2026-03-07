@@ -430,6 +430,9 @@ class LiscribeApp(rumps.App):
                 if self._scribe_ctrl.state == ControllerState.RECORDING:
                     self._scribe_ctrl.cancel()
             self._panels.pop(name, None)
+            # Resign active and bring the app that was behind (e.g. Cursor) to the front so the user can click and type.
+            if name == "scribe":
+                AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().hide_(None))
 
         window.events.closed += _on_closed
         self._panels[name] = window
