@@ -26,7 +26,7 @@ from scipy.signal import resample_poly
 # Optional progress info for ETA: segment_index, total_estimated, elapsed_sec, eta_remaining_sec
 ProgressInfo = dict
 
-from liscribe.config import load_config
+from liscribe.config import CACHE_DIR, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class TranscriptionResult:
 
 def get_model_path() -> Path:
     """Return the local cache directory for whisper models."""
-    return Path.home() / ".cache" / "liscribe" / "models"
+    return CACHE_DIR / "models"
 
 
 def _model_cache_roots() -> list[Path]:

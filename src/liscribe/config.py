@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 CONFIG_DIR = Path.home() / ".config" / "liscribe"
 CONFIG_PATH = CONFIG_DIR / "config.json"
+CACHE_DIR = Path.home() / ".cache" / "liscribe"
 
 DEFAULTS: dict[str, dict[str, Any]] = {
     "save_folder": {

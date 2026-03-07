@@ -84,6 +84,8 @@
 <script>
   (function () {
     const POLL_MS = 400;
+    const INIT_API_DELAY_MS = 80;
+    const RETRY_DELAY_MS = 250;
     let progressInterval = null;
     let currentAudioPath = null;
     let currentFilename = '';
@@ -122,15 +124,21 @@
         const models = await pywebview.api.get_models();
         const container = el('model-checkboxes');
         clearChildren(container);
+        if (!Array.isArray(models)) return;
         models.forEach(m => {
           const label = document.createElement('label');
+          label.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;' +
+            (m.is_downloaded ? 'cursor:pointer' : 'cursor:not-allowed;opacity:0.7');
           const cb = document.createElement('input');
           cb.type = 'checkbox';
           cb.checked = !!m.is_selected;
+          cb.disabled = !m.is_downloaded;
           cb.dataset.name = m.name;
-          cb.addEventListener('change', updateSelectedModels);
+          if (m.is_downloaded) {
+            cb.addEventListener('change', updateSelectedModels);
+          }
           label.appendChild(cb);
-          label.appendChild(document.createTextNode(m.name));
+          label.appendChild(document.createTextNode(m.name + (m.is_downloaded ? '' : ' (not downloaded)')));
           container.appendChild(label);
         });
         updateSelectedModels();
@@ -275,8 +283,14 @@
     el('done-close').addEventListener('click', function () { window.close(); });
 
     window.addEventListener('load', async () => {
+      await new Promise(r => setTimeout(r, INIT_API_DELAY_MS));
       await loadInitialState();
       await loadModels();
+      if (el('model-checkboxes').children.length === 0) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        await loadInitialState();
+        await loadModels();
+      }
     });
   })();
 </script>

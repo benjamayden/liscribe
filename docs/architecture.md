@@ -1,67 +1,71 @@
 # Liscribe v2 — C4 Architecture
 
 > Defined in Phase 2. Implementation fills in from Phase 3 onward.
+> Diagrams use [Mermaid C4](https://mermaid.js.org/syntax/c4.html) (compatible with C4-PlantUML).
 
 ---
 
-## Context — what Liscribe is and who uses it
+## Level 1 — System Context
 
-```
-┌─────────────────────────────────────────────────────┐
-│  User (Mac, git-clone audience)                     │
-│                                                     │
-│  Uses Liscribe to:                                  │
-│  · Record + transcribe meetings/audio (Scribe)      │
-│  · Dictate text into any app (Dictate)              │
-│  · Transcribe existing audio files (Transcribe)     │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│  Liscribe.app  (menu bar resident, no terminal)     │
-│                                                     │
-│  Reads from: microphone, system audio (BlackHole)  │
-│  Writes to:  local filesystem (transcripts, WAVs)  │
-│  Uses:       faster-whisper models (local only)    │
-│  Never:      network calls after model download    │
-└─────────────────────────────────────────────────────┘
+Who uses the system and what the system does.
+
+```mermaid
+C4Context
+    Person(user, "User", "Mac, git-clone audience. Uses Scribe (record + transcribe), Dictate, Transcribe (existing files).")
+    System(liscribe, "Liscribe", "Menu bar app, no terminal. Reads mic + system audio (BlackHole). Writes transcripts/WAVs. faster-whisper, local only. No network after model download.")
+    Rel(user, liscribe, "Uses")
 ```
 
 ---
 
-## Container — major building blocks
+## Level 2 — Container
 
+Major building blocks inside Liscribe.
+
+```mermaid
+C4Container
+    Person(user, "User")
+    Container_Boundary(liscribe, "Liscribe.app") {
+        Container(menubar, "Menu Bar", "rumps", "Dropdown, hotkeys (Scribe, Dictate, Transcribe, Settings)")
+        Container(panels, "Panel Layer", "pywebview", "ScribePanel, TranscribePanel, DictatePanel, SettingsPanel, OnboardingPanel")
+        Container(services, "Services", "Python", "AudioService, ModelService, ConfigService, HotkeyService")
+        Container(engine, "Engine", "Python", "recorder, transcriber, output, notes, transcribe_worker, waveform, config, platform_setup")
+    }
+    Rel(user, menubar, "Uses")
+    Rel(menubar, panels, "Opens")
+    Rel(panels, services, "Uses")
+    Rel(services, engine, "Wraps")
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Liscribe.app                                                   │
-│                                                                 │
-│  ┌─────────────┐   ┌──────────────────────────────────────┐   │
-│  │  Menu Bar   │   │  Panel Layer (pywebview)             │   │
-│  │  (rumps)    │──▶│                                      │   │
-│  │             │   │  ScribePanel   TranscribePanel       │   │
-│  │  Dropdown   │   │  DictatePanel  SettingsPanel         │   │
-│  │  Hotkeys    │   │  OnboardingPanel                     │   │
-│  └─────────────┘   └────────────────────┬─────────────────┘   │
-│                                          │                      │
-│  ┌───────────────────────────────────────▼─────────────────┐  │
-│  │  Services Layer                                          │  │
-│  │                                                          │  │
-│  │  AudioService     ModelService     ConfigService        │  │
-│  │  (recorder.py)    (transcriber.py) (config.py)         │  │
-│  └───────────────────────────────────────────────────────  ┘  │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Engine Layer (v1 carry-forward, frozen)                 │  │
-│  │                                                          │  │
-│  │  recorder  transcriber  output  notes                    │  │
-│  │  transcribe_worker  waveform  config  platform_setup     │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+
+**Single instance**  
+Only one Liscribe process runs per user. A file lock under `~/.cache/liscribe` plus a Unix socket are used so a second launch does not start a duplicate; instead it signals the existing instance to activate (bring to front) and exits. See `app_instance` in the codebase.
+
+---
+
+## Level 3 — Component (Panel Layer)
+
+Components inside the Panel Layer. Each panel follows the same pattern: HTML view, Bridge (JS↔Python), Controller.
+
+```mermaid
+C4Component
+    Container_Boundary(panel_layer, "Panel Layer") {
+        Component(scribe, "ScribePanel", "HTML + pywebview", "Record, waveform, notes. ScribeBridge, ScribeController.")
+        Component(transcribe, "TranscribePanel", "HTML + pywebview", "File picker, model list. TranscribeBridge, TranscribeController.")
+        Component(dictate, "DictatePanel", "HTML + pywebview", "Waveform, timer. DictateBridge, DictateController.")
+        Component(settings, "SettingsPanel", "HTML + pywebview", "Tabs: General, Models, Hotkeys, Deps, Help. SettingsBridge.")
+        Component(onboarding, "OnboardingPanel", "HTML + pywebview", "Wizard, practice steps. OnboardingBridge.")
+    }
+    Container_Ext(services, "Services", "Python", "AudioService, ModelService, ConfigService, HotkeyService")
+    Rel(scribe, services, "Uses")
+    Rel(transcribe, services, "Uses")
+    Rel(dictate, services, "Uses")
+    Rel(settings, services, "Reads/writes Config")
+    Rel(onboarding, services, "Calls workflows")
 ```
 
 ---
 
-## Component — inside the Panel Layer
+## Panel contracts and behaviour
 
 Each panel is a self-contained component:
 
@@ -82,6 +86,9 @@ The app sets **confirm_close** on the pywebview window (True while recording/tra
 
 **Window options (pywebview)**  
 For Scribe, the app passes `confirm_close=True` when creating the window and later mutates `window.confirm_close` (True/False). The pywebview Cocoa layer reads this attribute when the user hits the red X to decide whether to show the “Recording in progress…” dialog. If pywebview changes how confirm works, this contract may need updating.
+
+**Panel load — pywebview API readiness**  
+The JS bridge (`pywebview.api`) may not be injectable immediately on `window.load`. Panels that depend on it for initial data (e.g. model list, mic list) should delay the first API call briefly (e.g. 80 ms), then retry once after a short backoff (e.g. 250 ms) if the result is empty. Scribe and Transcribe both use this pattern so the model list and device list populate reliably instead of staying blank.
 
 **TranscribePanel**
 - HTML/CSS view

@@ -12,6 +12,7 @@ Integration notes:
 
 from __future__ import annotations
 
+import atexit
 import os
 import sys
 
@@ -56,6 +57,7 @@ from webview import http as webview_http
 import AppKit
 from PyObjCTools import AppHelper
 
+from liscribe import app_instance
 from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
 from liscribe.bridge.transcribe_bridge import TranscribeBridge
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
@@ -395,6 +397,17 @@ class LiscribleApp(rumps.App):
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
+
+    def activate_on_main_thread() -> None:
+        AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+
+    guard = app_instance.acquire(
+        on_activate=lambda: AppHelper.callAfter(activate_on_main_thread)
+    )
+    if guard is None:
+        app_instance.try_activate_existing()
+        sys.exit(0)
+    atexit.register(guard.release)
 
     config = ConfigService()
     audio = AudioService(config)
