@@ -59,6 +59,25 @@ class TestListModels:
 
 
 # ---------------------------------------------------------------------------
+# list_models_fast
+# ---------------------------------------------------------------------------
+
+class TestListModelsFast:
+    def test_returns_same_shape_as_list_models(self, svc):
+        result = svc.list_models_fast()
+        assert len(result) == 5
+        for entry in result:
+            assert "name" in entry
+            assert "is_downloaded" in entry
+            assert "size_label" in entry
+
+    def test_does_not_call_transcriber(self, svc):
+        with patch("liscribe.services.model_service._transcriber") as tr:
+            svc.list_models_fast()
+            tr.is_model_available.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # is_downloaded
 # ---------------------------------------------------------------------------
 

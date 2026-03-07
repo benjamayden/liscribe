@@ -12,8 +12,40 @@ Integration notes:
 
 from __future__ import annotations
 
-import logging
+import os
 import sys
+
+# Daemonize before any other imports (rumps, webview, etc. start threads; fork is unsafe after that).
+# Re-exec this script in a new session so the app keeps running after the terminal is closed.
+_DAEMON_ENV = "LISCRIBE_DAEMON"
+
+
+def _maybe_detach() -> None:
+    if os.environ.get(_DAEMON_ENV):
+        return
+    try:
+        if not os.isatty(sys.stdin.fileno()):
+            return
+    except (AttributeError, OSError):
+        return
+    pid = os.fork()
+    if pid > 0:
+        sys.exit(0)
+    os.setsid()
+    with open(os.devnull, "r") as r:
+        os.dup2(r.fileno(), 0)
+    with open(os.devnull, "a") as w:
+        os.dup2(w.fileno(), 1)
+        os.dup2(w.fileno(), 2)
+    os.environ[_DAEMON_ENV] = "1"
+    os.execv(sys.executable, [sys.executable, __file__] + sys.argv[1:])
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    _maybe_detach()
+
+import logging
 from pathlib import Path
 from typing import Any
 

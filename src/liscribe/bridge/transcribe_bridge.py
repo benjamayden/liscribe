@@ -61,11 +61,15 @@ class TranscribeBridge:
     # ------------------------------------------------------------------
 
     def get_models(self) -> list[dict]:
-        """Return all models with download status and selection flag."""
+        """Return all models with download status and selection flag.
+
+        Uses list_models_fast() to avoid blocking the main thread on filesystem
+        during panel load, so the file chooser opens promptly when Browse is clicked.
+        """
         selected = set(self._controller.selected_models)
         return [
             {**m, "is_selected": m["name"] in selected}
-            for m in self._model.list_models()
+            for m in self._model.list_models_fast()
         ]
 
     # ------------------------------------------------------------------

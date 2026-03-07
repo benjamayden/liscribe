@@ -169,6 +169,9 @@ class AudioService:
     def get_levels(self, bars: int = 30) -> list[float]:
         """Return instantaneous RMS levels (0.0–1.0) for waveform display.
 
+        When speaker capture is on, combines mic and speaker levels per bar
+        (max of the two) so the waveform reflects both streams.
+
         Returns an empty list when not recording.
         """
         if self._session is None:
@@ -176,15 +179,24 @@ class AudioService:
         with self._session._lock:
             if not self._session._mic_chunks:
                 return []
-            chunk = self._session._mic_chunks[-1].flatten()
+            mic_chunk = self._session._mic_chunks[-1].flatten()
+            speaker_chunk = None
+            if self._session.speaker and self._session._speaker_chunks:
+                speaker_chunk = self._session._speaker_chunks[-1].flatten()
 
-        if len(chunk) == 0:
-            return [0.0] * bars
+        def _levels_from_chunk(chunk: np.ndarray) -> list[float]:
+            if len(chunk) == 0:
+                return [0.0] * bars
+            bar_size = max(1, len(chunk) // bars)
+            out: list[float] = []
+            for i in range(bars):
+                segment = chunk[i * bar_size : (i + 1) * bar_size]
+                rms = float(np.sqrt(np.mean(np.square(segment)))) if len(segment) > 0 else 0.0
+                out.append(min(1.0, rms * 10.0))
+            return out
 
-        bar_size = max(1, len(chunk) // bars)
-        levels: list[float] = []
-        for i in range(bars):
-            segment = chunk[i * bar_size : (i + 1) * bar_size]
-            rms = float(np.sqrt(np.mean(np.square(segment)))) if len(segment) > 0 else 0.0
-            levels.append(min(1.0, rms * 10.0))
-        return levels
+        mic_levels = _levels_from_chunk(mic_chunk)
+        if speaker_chunk is not None:
+            speaker_levels = _levels_from_chunk(speaker_chunk)
+            return [max(m, s) for m, s in zip(mic_levels, speaker_levels)]
+        return mic_levels

@@ -96,10 +96,10 @@ class TestBuildMarkdown:
         assert "token_estimate:" in md
         assert "word_count:" in md
         assert "duration_seconds:" in md
-        assert "In (mic): Okay let's start." in md
-        assert "Out (speaker): Sure, I can see your screen now." in md
+        assert "in: Okay let's start." in md
+        assert "out: Sure, I can see your screen now." in md
         # Grouped by speaker with blank line between
-        assert "\n\nOut (speaker):" in md
+        assert "\n\nout:" in md
 
 
 class TestSegmentNoteMapping:

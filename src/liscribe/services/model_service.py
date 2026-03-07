@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 from typing import Callable
@@ -9,8 +10,38 @@ from typing import Callable
 from liscribe import transcriber as _transcriber
 from liscribe import output as _output
 from liscribe.notes import Note
-from liscribe.transcriber import TranscriptionResult, WHISPER_MODEL_ORDER
+from liscribe.transcriber import (
+    TranscriptionResult,
+    WHISPER_MODEL_ORDER,
+    build_merged_transcription_result,
+)
 from liscribe.services.config_service import ConfigService
+
+
+def _load_dual_source_session(audio_path: Path) -> dict | None:
+    """Return dual-source session details when *audio_path* points to session mic.wav."""
+    if audio_path.name.lower() != "mic.wav":
+        return None
+    session_dir = audio_path.parent
+    speaker_path = session_dir / "speaker.wav"
+    session_json_path = session_dir / "session.json"
+    if not speaker_path.exists() or not session_json_path.exists():
+        return None
+
+    offset = 0.0
+    try:
+        session_meta = json.loads(session_json_path.read_text(encoding="utf-8"))
+        offset = float(session_meta.get("offset_correction_seconds", 0.0))
+    except Exception:
+        offset = 0.0
+
+    return {
+        "session_dir": session_dir,
+        "session_json_path": session_json_path,
+        "mic_audio_path": audio_path,
+        "speaker_audio_path": speaker_path,
+        "speaker_offset_seconds": offset,
+    }
 
 
 class ModelService:
@@ -29,23 +60,39 @@ class ModelService:
     # Discovery
     # ------------------------------------------------------------------
 
+    _SIZE_LABELS = {
+        "tiny": "~75 MB",
+        "base": "~145 MB",
+        "small": "~465 MB",
+        "medium": "~1.5 GB",
+        "large": "~3 GB",
+    }
+
     def list_models(self) -> list[dict]:
         """Return all known models with download status.
 
         Each dict has keys: name, is_downloaded, size_label.
         """
-        size_labels = {
-            "tiny": "~75 MB",
-            "base": "~145 MB",
-            "small": "~465 MB",
-            "medium": "~1.5 GB",
-            "large": "~3 GB",
-        }
         return [
             {
                 "name": name,
                 "is_downloaded": _transcriber.is_model_available(name),
-                "size_label": size_labels.get(name, ""),
+                "size_label": self._SIZE_LABELS.get(name, ""),
+            }
+            for name in WHISPER_MODEL_ORDER
+        ]
+
+    def list_models_fast(self) -> list[dict]:
+        """Return model list without checking disk. Same shape as list_models().
+
+        Use when only names/order are needed (e.g. Transcribe panel) to avoid
+        blocking the main thread on filesystem during panel load.
+        """
+        return [
+            {
+                "name": name,
+                "is_downloaded": True,
+                "size_label": self._SIZE_LABELS.get(name, ""),
             }
             for name in WHISPER_MODEL_ORDER
         ]
@@ -94,8 +141,13 @@ class ModelService:
     ) -> TranscriptionResult:
         """Transcribe an audio file. Loads model if not already loaded.
 
+        When wav_path points to a dual-source session (mic.wav with speaker.wav
+        and session.json in the same dir), transcribes both streams, merges
+        with source labels and mic-bleed dedup, and returns the merged result.
+
         Blocks the calling thread. Run in a worker thread from controllers.
         """
+        wav_path = Path(wav_path)
         if model_size is None:
             model_size = self._config.whisper_model
 
@@ -107,6 +159,36 @@ class ModelService:
         def _progress(progress: float, info: dict | None = None) -> None:
             if on_progress:
                 on_progress(progress)
+
+        dual = _load_dual_source_session(wav_path)
+        if dual is not None:
+            def mic_progress(p: float, info: dict | None = None) -> None:
+                _progress(p * 0.5)
+
+            def speaker_progress(p: float, info: dict | None = None) -> None:
+                _progress(0.5 + p * 0.5)
+
+            mic_result = _transcriber.transcribe(
+                audio_path=dual["mic_audio_path"],
+                model=model,
+                model_size=model_size,
+                on_progress=mic_progress if on_progress else None,
+            )
+            speaker_result = _transcriber.transcribe(
+                audio_path=dual["speaker_audio_path"],
+                model=model,
+                model_size=model_size,
+                on_progress=speaker_progress if on_progress else None,
+            )
+            return build_merged_transcription_result(
+                mic_result=mic_result,
+                speaker_result=speaker_result,
+                speaker_offset_seconds=float(dual["speaker_offset_seconds"]),
+                group_consecutive=self._config.group_consecutive_speaker_lines,
+                suppress_mic_bleed_duplicates=self._config.suppress_mic_bleed_duplicates,
+                bleed_similarity_threshold=self._config.mic_bleed_similarity_threshold,
+                model_name=model_size,
+            )
 
         return _transcriber.transcribe(
             audio_path=wav_path,
@@ -126,12 +208,23 @@ class ModelService:
         notes: list[Note] | None = None,
         model_name: str | None = None,
         save_folder: str | Path | None = None,
+        filename_stem: str | None = None,
     ) -> Path:
         """Write a transcript to a Markdown file and return the path.
+
+        When wav_path points to a dual-source session (mic.wav), pass
+        filename_stem (e.g. session dir name) so the transcript is named
+        after the session, not \"mic\". If filename_stem is None and
+        wav_path is a session mic.wav, it is inferred from the session dir.
 
         Wraps output.save_transcript() so the controller layer never
         imports engine files directly.
         """
+        wav_path = Path(wav_path)
+        if filename_stem is None:
+            dual = _load_dual_source_session(wav_path)
+            if dual is not None:
+                filename_stem = dual["session_dir"].name
         return _output.save_transcript(
             result=result,
             audio_path=wav_path,
@@ -139,6 +232,7 @@ class ModelService:
             model_name=model_name,
             include_model_in_filename=True,
             output_dir=save_folder,
+            filename_stem=filename_stem,
         )
 
     def cleanup_wav(
@@ -148,7 +242,22 @@ class ModelService:
     ) -> bool:
         """Delete the WAV only if every transcript file exists and is non-empty.
 
+        When wav_path points to a dual-source session (mic.wav), also deletes
+        speaker.wav and session.json in the same directory.
+
         Wraps output.cleanup_audio() — safe to call; never deletes the WAV
         unless all transcripts are confirmed written.
         """
-        return _output.cleanup_audio(wav_path, md_paths)
+        wav_path = Path(wav_path)
+        dual = _load_dual_source_session(wav_path)
+        ok = _output.cleanup_audio(wav_path, md_paths)
+        if dual and ok:
+            ok = _output.cleanup_audio(
+                dual["speaker_audio_path"],
+                md_paths,
+            ) and ok
+            try:
+                dual["session_json_path"].unlink(missing_ok=True)
+            except OSError:
+                ok = False
+        return ok

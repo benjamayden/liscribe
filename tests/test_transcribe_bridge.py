@@ -34,10 +34,12 @@ def controller():
 @pytest.fixture()
 def model_svc():
     svc = MagicMock()
-    svc.list_models.return_value = [
+    models = [
         {"name": "base", "is_downloaded": True, "size_label": "~145 MB"},
         {"name": "small", "is_downloaded": False, "size_label": "~465 MB"},
     ]
+    svc.list_models.return_value = models
+    svc.list_models_fast.return_value = models
     return svc
 
 
@@ -83,9 +85,9 @@ class TestGetInitialState:
 
 
 class TestGetModels:
-    def test_delegates_to_model_list_models(self, bridge, model_svc):
+    def test_delegates_to_model_list_models_fast(self, bridge, model_svc):
         bridge.get_models()
-        model_svc.list_models.assert_called_once()
+        model_svc.list_models_fast.assert_called_once()
 
     def test_adds_is_selected_from_controller(self, bridge, controller):
         controller.selected_models = ["base"]

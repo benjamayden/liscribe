@@ -91,9 +91,9 @@ def _build_chronological_transcript(
     def speaker_for(seg: dict) -> str:
         source = seg.get("source")
         if source == "mic":
-            return "In (mic)"
+            return "in"
         if source == "speaker":
-            return "Out (speaker)"
+            return "out"
         return seg.get("speaker", "Speaker")
 
     # Group consecutive segments by speaker
