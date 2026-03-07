@@ -2,13 +2,71 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 from liscribe import config as _config
 
 logger = logging.getLogger(__name__)
+
+# UI-only prefs not in config.py (engine frozen). Persisted in CONFIG_DIR.
+UI_PREFS_PATH = Path(_config.CONFIG_DIR) / "ui_prefs.json"
+START_ON_LOGIN_KEY = "start_on_login"
+
+
+def _get_app_bundle_path() -> Path | None:
+    """If we are running inside a .app bundle, return its path; else None."""
+    exe = Path(sys.executable).resolve()
+    # Walk up at most 3 levels: exe -> MacOS -> Contents -> .app
+    for _ in range(3):
+        if exe.suffix == ".app" or (exe.parent.name == "MacOS" and exe.parent.parent.name == "Contents"):
+            if exe.parent.name == "MacOS":
+                return exe.parent.parent.parent
+            return exe
+        exe = exe.parent
+    return None
+
+
+def _set_login_item(enabled: bool) -> None:
+    """Register or remove Liscribe as a login item on macOS. No-op if not inside .app."""
+    app_path = _get_app_bundle_path()
+    if app_path is None:
+        logger.debug("Not running from .app bundle; login item not changed")
+        return
+    path_str = str(app_path)
+    app_name = app_path.stem  # e.g. "Liscribe" from "Liscribe.app"
+    if enabled:
+        try:
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    f'tell application "System Events" to make login item at end with properties {{path:"{path_str}", hidden:false}}',
+                ],
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+        except Exception as exc:
+            logger.warning("Could not add login item: %s", exc)
+    else:
+        try:
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    f'tell application "System Events" to delete login item "{app_name}"',
+                ],
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+        except Exception as exc:
+            logger.warning("Could not remove login item: %s", exc)
 
 
 class ConfigService:
@@ -250,3 +308,32 @@ class ConfigService:
     @scribe_models.setter
     def scribe_models(self, models: list[str]) -> None:
         self.set("scribe_models", list(models))
+
+    # ------------------------------------------------------------------
+    # Start on Login (Phase 7 — persisted in ui_prefs.json, not config.py)
+    # ------------------------------------------------------------------
+
+    @property
+    def start_on_login(self) -> bool:
+        """Whether to start Liscribe on user login. Stored in ui_prefs.json."""
+        try:
+            if UI_PREFS_PATH.exists():
+                data = json.loads(UI_PREFS_PATH.read_text(encoding="utf-8"))
+                return bool(data.get(START_ON_LOGIN_KEY, False))
+        except Exception:
+            logger.debug("Could not read ui_prefs.json", exc_info=True)
+        return False
+
+    @start_on_login.setter
+    def start_on_login(self, value: bool) -> None:
+        _config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        data: dict[str, Any] = {}
+        if UI_PREFS_PATH.exists():
+            try:
+                data = json.loads(UI_PREFS_PATH.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        data[START_ON_LOGIN_KEY] = value
+        UI_PREFS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        logger.debug("Saved start_on_login=%s to %s", value, UI_PREFS_PATH)
+        _set_login_item(value)

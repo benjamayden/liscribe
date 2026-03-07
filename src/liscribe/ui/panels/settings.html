@@ -5,16 +5,540 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings</title>
   <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .settings-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+    .settings-sidebar {
+      width: 160px;
+      flex-shrink: 0;
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      padding: 12px 0;
+    }
+    .settings-tab {
+      display: block;
+      width: 100%;
+      padding: 10px 16px;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .settings-tab:hover { color: var(--text); background: var(--bg-input); }
+    .settings-tab.active { color: var(--text); font-weight: 600; background: var(--bg); }
+    .settings-content { flex: 1; overflow-y: auto; padding: 20px; }
+    .settings-tab-pane { display: none; }
+    .settings-tab-pane.active { display: block; }
+    .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px; }
+    .form-row { margin-bottom: 16px; }
+    .form-row label { display: block; margin-bottom: 4px; font-size: 13px; }
+    .path-row { display: flex; align-items: center; gap: 8px; }
+    .path-display { flex: 1; background: var(--bg-input); padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .app-row { display: flex; align-items: center; gap: 8px; }
+    .app-display { flex: 1; background: var(--bg-input); padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px; }
+    .radio-group { display: flex; gap: 16px; align-items: center; }
+    .radio-group label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; }
+    .help-topic-list { list-style: none; }
+    .help-topic-list li { margin-bottom: 4px; }
+    .help-topic-list a { color: var(--accent-blue); text-decoration: none; font-size: 13px; }
+    .help-topic-list a:hover { text-decoration: underline; }
+    .help-section { margin-bottom: 20px; }
+    .help-section h4 { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .help-detail { display: none; }
+    .help-detail.active { display: block; }
+    .help-detail .back { display: inline-block; margin-bottom: 12px; color: var(--accent-blue); cursor: pointer; font-size: 13px; }
+    .help-detail h2 { font-size: 15px; margin-bottom: 12px; }
+    .help-detail p, .help-detail ul { margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+    .perm-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .perm-row:last-child { border-bottom: none; }
+    .model-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .model-table th, .model-table td { padding: 8px 12px; text-align: left; font-size: 13px; }
+    .model-table th { color: var(--text-muted); font-weight: 600; }
+    .model-table tr { border-bottom: 1px solid var(--border); }
+    .hotkey-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+    .hotkey-display { font-family: ui-monospace, monospace; font-size: 13px; background: var(--bg-input); padding: 6px 10px; border-radius: var(--radius-sm); }
+    .replacements-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
+    .replacements-table th, .replacements-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    .header-close { cursor: pointer; padding: 4px; color: var(--text-muted); }
+    .header-close:hover { color: var(--text); }
+  </style>
 </head>
 <body>
-  <div class="panel-header">
+
+  <div class="panel-header" style="padding: 12px 16px;">
     <span class="panel-title">Settings</span>
+    <span id="header-close" class="header-close" title="Close">✕</span>
   </div>
 
-  <div class="panel-body">
-    <p class="label" style="text-align:center;padding:40px 0;">
-      Settings panel — implemented in Phase 7
-    </p>
+  <div class="settings-layout">
+    <nav class="settings-sidebar">
+      <button type="button" class="settings-tab active" data-tab="general">General</button>
+      <button type="button" class="settings-tab" data-tab="models">Models</button>
+      <button type="button" class="settings-tab" data-tab="hotkeys">Hotkeys</button>
+      <button type="button" class="settings-tab" data-tab="replacements">Replacements</button>
+      <button type="button" class="settings-tab" data-tab="deps">Dependencies</button>
+      <button type="button" class="settings-tab" data-tab="help">Help</button>
+    </nav>
+
+    <div class="settings-content">
+      <div id="pane-general" class="settings-tab-pane active">
+        <div class="section-label">Default save folder</div>
+        <div class="form-row path-row">
+          <div id="save-folder-display" class="path-display">~/transcripts</div>
+          <button type="button" class="btn btn-secondary" id="browse-save-folder">Browse</button>
+        </div>
+        <div class="section-label mt-16">Default microphone</div>
+        <div class="form-row">
+          <select id="default-mic">
+            <option value="">System default</option>
+          </select>
+        </div>
+        <div class="section-label mt-16">WAV files after transcription</div>
+        <div class="form-row radio-group">
+          <label><input type="radio" name="keep-wav" value="true"> Keep</label>
+          <label><input type="radio" name="keep-wav" value="false" checked> Delete</label>
+        </div>
+        <div class="section-label mt-16">Dictation auto-enter after paste</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="dictation-auto-enter" checked>
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="dictation-auto-enter-label">ON</span>
+          </label>
+        </div>
+        <div class="section-label mt-16">Start on Login</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="start-on-login">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="start-on-login-label">OFF</span>
+          </label>
+        </div>
+        <div class="section-label mt-16">Open transcripts with</div>
+        <div class="form-row app-row">
+          <div id="open-transcript-app-display" class="app-display">Default app</div>
+          <button type="button" class="btn btn-secondary" id="change-app">Change</button>
+        </div>
+      </div>
+
+      <div id="pane-models" class="settings-tab-pane">
+        <div class="section-label">Whisper Models</div>
+        <table class="model-table">
+          <thead><tr><th>Model</th><th>Size</th><th>Status</th><th></th></tr></thead>
+          <tbody id="models-tbody"></tbody>
+        </table>
+        <div class="section-label">Scribe default models</div>
+        <div id="scribe-defaults" class="form-row" style="flex-wrap:wrap;gap:12px;"></div>
+        <div class="section-label mt-16">Dictate model</div>
+        <div class="form-row">
+          <select id="dictate-model"></select>
+        </div>
+        <p id="model-download-status" class="section-label mt-12 text-muted" style="display:none;"></p>
+      </div>
+
+      <div id="pane-hotkeys" class="settings-tab-pane">
+        <div class="section-label">Keyboard Shortcuts</div>
+        <div class="hotkey-row">
+          <span>Open Scribe</span>
+          <span id="launch-hotkey-display" class="hotkey-display">⌃ ⌥ L</span>
+          <button type="button" class="btn btn-secondary btn-ghost" id="change-launch-hotkey">Change</button>
+        </div>
+        <div class="hotkey-row">
+          <span>Dictate trigger key</span>
+          <span id="dictation-hotkey-display" class="hotkey-display">Right Control</span>
+          <button type="button" class="btn btn-secondary btn-ghost" id="change-dictation-hotkey">Change</button>
+        </div>
+        <div class="section-label mt-20">Dictate modes (always both active)</div>
+        <p style="font-size:13px;color:var(--text-muted);">Double-tap → toggle recording</p>
+        <p style="font-size:13px;color:var(--text-muted);">Hold → record while held</p>
+      </div>
+
+      <!-- Replacements: stub until Phase 10; full CRUD then. -->
+      <div id="pane-replacements" class="settings-tab-pane">
+        <div class="section-label">Word Replacements</div>
+        <p class="text-muted mb-12">Manage trigger words for Scribe, Transcribe, and Dictate. Full editing in Phase 10.</p>
+        <table class="replacements-table">
+          <thead><tr><th>Trigger</th><th>Output</th><th>Type</th><th>Scope</th></tr></thead>
+          <tbody id="replacements-tbody"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary" id="add-replacement" style="display:none;">+ Add replacement</button>
+      </div>
+
+      <div id="pane-deps" class="settings-tab-pane">
+        <div class="section-label">Permissions</div>
+        <div id="permissions-list"></div>
+        <div class="section-label mt-24">Audio Dependencies</div>
+        <div id="blackhole-row" class="perm-row">
+          <span>BlackHole 2ch</span>
+          <span id="blackhole-status">Checking…</span>
+        </div>
+        <p class="text-muted" style="font-size:12px;margin-top:4px;">Required for speaker capture in Scribe.</p>
+        <button type="button" class="btn btn-secondary" id="blackhole-guide" style="margin-top:8px;display:none;">Setup Guide</button>
+      </div>
+
+      <div id="pane-help" class="settings-tab-pane">
+        <div id="help-list-view">
+          <div class="help-section">
+            <h4>Getting Started</h4>
+            <ul class="help-topic-list">
+              <li><a href="#" data-anchor="scribe">How to use Scribe</a></li>
+              <li><a href="#" data-anchor="dictate">How to use Dictate</a></li>
+              <li><a href="#" data-anchor="transcribe">How to use Transcribe</a></li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h4>Setup &amp; Configuration</h4>
+            <ul class="help-topic-list">
+              <li><a href="#" data-anchor="permissions">Permissions explained</a></li>
+              <li><a href="#" data-anchor="blackhole">BlackHole setup</a></li>
+              <li><a href="#" data-anchor="models">Downloading models</a></li>
+              <li><a href="#" data-anchor="hotkeys">Hotkey customisation</a></li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h4>Privacy &amp; Security</h4>
+            <ul class="help-topic-list">
+              <li><a href="#" data-anchor="data">What data Liscribe stores</a></li>
+              <li><a href="#" data-anchor="network">Network activity</a></li>
+              <li><a href="#" data-anchor="privacy-policy">Privacy policy</a></li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h4>More</h4>
+            <ul class="help-topic-list">
+              <li><a href="#" data-anchor="uninstall">Uninstall Liscribe</a></li>
+              <li><a href="#" id="help-github" target="_blank" rel="noopener">GitHub (README, diagrams, security audit) ↗</a></li>
+            </ul>
+          </div>
+        </div>
+        <div id="help-detail-view" class="help-detail">
+          <span class="back" id="help-back">← Back</span>
+          <div id="help-detail-content"></div>
+        </div>
+      </div>
+    </div>
   </div>
+
+<script>
+(function() {
+  const API_DELAY_MS = 80;
+  const TAB_IDS = ['general', 'models', 'hotkeys', 'replacements', 'deps', 'help'];
+  let config = {};
+  let mics = [];
+
+  function el(id) { return document.getElementById(id); }
+  function qs(sel) { return document.querySelector(sel); }
+  function qsAll(sel) { return document.querySelectorAll(sel); }
+
+  function showTab(tabId) {
+    TAB_IDS.forEach(function(t) {
+      const pane = el('pane-' + t);
+      const tab = document.querySelector('.settings-tab[data-tab="' + t + '"]');
+      if (pane) pane.classList.toggle('active', t === tabId);
+      if (tab) tab.classList.toggle('active', t === tabId);
+    });
+    if (tabId === 'deps') refreshPermissions();
+    if (tabId === 'models') refreshModels();
+  }
+
+  async function loadConfig() {
+    try {
+      config = await pywebview.api.get_config();
+      return config;
+    } catch (e) { console.error('get_config:', e); return {}; }
+  }
+
+  async function loadMics() {
+    try {
+      mics = await pywebview.api.get_mics() || [];
+      return mics;
+    } catch (e) { console.error('get_mics:', e); return []; }
+  }
+
+  function applyConfigToGeneral() {
+    el('save-folder-display').textContent = config.save_folder || '~/transcripts';
+    const keepWav = config.keep_wav === true;
+    qs('input[name="keep-wav"][value="true"]').checked = keepWav;
+    qs('input[name="keep-wav"][value="false"]').checked = !keepWav;
+    el('dictation-auto-enter').checked = config.dictation_auto_enter !== false;
+    el('dictation-auto-enter-label').textContent = el('dictation-auto-enter').checked ? 'ON' : 'OFF';
+    el('start-on-login').checked = config.start_on_login === true;
+    el('start-on-login-label').textContent = el('start-on-login').checked ? 'ON' : 'OFF';
+    const appName = config.open_transcript_app || 'default';
+    el('open-transcript-app-display').textContent = appName === 'default' ? 'Default app' : appName;
+
+    const micSelect = el('default-mic');
+    micSelect.innerHTML = '<option value="">System default</option>';
+    mics.forEach(function(m) {
+      const name = m.name || m.label || String(m.index);
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      if (config.default_mic === name) opt.selected = true;
+      micSelect.appendChild(opt);
+    });
+  }
+
+  function formatHotkey(raw) {
+    if (!raw) return '—';
+    return raw.replace(/<ctrl>/gi, '⌃').replace(/<alt>/gi, '⌥').replace(/<shift>/gi, '⇧').replace(/<cmd>/gi, '⌘').replace(/\+/g, ' ').replace(/ctrl/gi, 'Control').replace(/left_ctrl/gi, 'Left Control').replace(/right_ctrl/gi, 'Right Control');
+  }
+
+  function applyConfigToHotkeys() {
+    el('launch-hotkey-display').textContent = formatHotkey(config.launch_hotkey) || '⌃ ⌥ L';
+    const dk = config.dictation_hotkey || 'left_ctrl';
+    el('dictation-hotkey-display').textContent = dk.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+  }
+
+  async function saveConfigKey(key, value) {
+    try {
+      await pywebview.api.set_config(key, value);
+      config[key] = value;
+    } catch (e) { console.error('set_config:', e); }
+  }
+
+  function addCell(tr, text) {
+    const td = document.createElement('td');
+    td.textContent = text;
+    tr.appendChild(td);
+    return td;
+  }
+
+  async function refreshModels() {
+    try {
+      const models = await pywebview.api.list_models() || [];
+      const tbody = el('models-tbody');
+      tbody.textContent = '';
+      models.forEach(function(m) {
+        const tr = document.createElement('tr');
+        addCell(tr, m.name);
+        addCell(tr, m.size_label || '');
+        addCell(tr, m.is_downloaded ? '✓ Downloaded' : 'Not downloaded');
+        const td = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = m.is_downloaded ? 'btn btn-ghost btn-danger' : 'btn btn-secondary';
+        btn.style.fontSize = '11px';
+        btn.textContent = m.is_downloaded ? 'Remove' : 'Download';
+        btn.dataset.name = m.name;
+        if (m.is_downloaded) btn.addEventListener('click', function() { removeModel(m.name); });
+        else btn.addEventListener('click', function() { startDownload(m.name); });
+        td.appendChild(btn);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      });
+      const scribeDefaults = config.scribe_models || ['base'];
+      const defaultsDiv = el('scribe-defaults');
+      defaultsDiv.textContent = '';
+      models.filter(function(m) { return m.is_downloaded; }).forEach(function(m) {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:inline-flex;align-items:center;gap:6px;cursor:pointer;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = scribeDefaults.indexOf(m.name) >= 0;
+        cb.dataset.name = m.name;
+        cb.addEventListener('change', async function() {
+          const checked = Array.from(defaultsDiv.querySelectorAll('input:checked')).map(function(i) { return i.dataset.name; });
+          await saveConfigKey('scribe_models', checked);
+          config.scribe_models = checked;
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(m.name));
+        defaultsDiv.appendChild(label);
+      });
+      const dictateSelect = el('dictate-model');
+      dictateSelect.textContent = '';
+      models.filter(function(m) { return m.is_downloaded; }).forEach(function(m) {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = m.name;
+        if ((config.dictation_model || 'base') === m.name) opt.selected = true;
+        dictateSelect.appendChild(opt);
+      });
+      dictateSelect.onchange = function() { saveConfigKey('dictation_model', dictateSelect.value); };
+    } catch (e) { console.error('refreshModels:', e); }
+  }
+
+  async function startDownload(name) {
+    el('model-download-status').style.display = 'block';
+    el('model-download-status').textContent = 'Downloading ' + name + '…';
+    try {
+      await pywebview.api.download_model(name);
+      const poll = setInterval(async function() {
+        const p = await pywebview.api.get_download_progress();
+        if (p.done) {
+          clearInterval(poll);
+          el('model-download-status').textContent = p.error ? 'Error: ' + p.error : 'Download complete.';
+          setTimeout(function() { el('model-download-status').style.display = 'none'; refreshModels(); loadConfig().then(function() { applyConfigToGeneral(); }); }, 1500);
+        }
+      }, 500);
+    } catch (e) {
+      el('model-download-status').textContent = 'Error: ' + (e.message || e);
+    }
+  }
+
+  async function removeModel(name) {
+    try {
+      const result = await pywebview.api.remove_model(name);
+      if (!result.ok) {
+        alert(result.message || 'Choose a different default first.');
+        return;
+      }
+      await loadConfig();
+      refreshModels();
+    } catch (e) { console.error('removeModel:', e); }
+  }
+
+  async function refreshPermissions() {
+    try {
+      const perms = await pywebview.api.get_permissions() || {};
+      const list = el('permissions-list');
+      list.textContent = '';
+      const entries = [['microphone', 'Microphone', 'microphone'], ['accessibility', 'Accessibility', 'accessibility'], ['input_monitoring', 'Input Monitoring', 'input_monitoring']];
+      entries.forEach(function(entry) {
+        const key = entry[0], label = entry[1], pane = entry[2];
+        const row = document.createElement('div');
+        row.className = 'perm-row';
+        const span1 = document.createElement('span');
+        span1.textContent = label;
+        row.appendChild(span1);
+        const span2 = document.createElement('span');
+        if (perms[key]) {
+          span2.textContent = '✓ Granted';
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-secondary btn-ghost';
+          btn.textContent = 'Open Settings';
+          btn.addEventListener('click', function() { pywebview.api.open_system_settings(pane); });
+          span2.appendChild(btn);
+        }
+        row.appendChild(span2);
+        list.appendChild(row);
+      });
+    } catch (e) { console.error('get_permissions:', e); }
+    try {
+      const bh = await pywebview.api.check_blackhole() || {};
+      el('blackhole-status').textContent = bh.installed ? '✓ Installed' : '✗ Not installed';
+      el('blackhole-guide').style.display = bh.installed ? 'none' : 'inline-flex';
+    } catch (e) { el('blackhole-status').textContent = '—'; }
+  }
+
+  /* Help navigation: two entry points — (1) URL hash on load (#help/anchor), (2) open_help(anchor) from Python via __liscribeNavigateHelp. Both switch to Help tab and show the section. */
+  window.__liscribeNavigateHelp = function(anchor) {
+    showTab('help');
+    const link = document.querySelector('.help-topic-list a[data-anchor="' + anchor + '"]');
+    if (link) link.click();
+  };
+
+  function showHelpDetail(anchor, title, bodyEl) {
+    document.getElementById('help-list-view').style.display = 'none';
+    document.getElementById('help-detail-view').classList.add('active');
+    const content = el('help-detail-content');
+    content.textContent = '';
+    const h2 = document.createElement('h2');
+    h2.textContent = title;
+    content.appendChild(h2);
+    content.appendChild(bodyEl);
+  }
+
+  function hideHelpDetail() {
+    document.getElementById('help-list-view').style.display = 'block';
+    document.getElementById('help-detail-view').classList.remove('active');
+  }
+
+  function helpBody(parts) {
+    const frag = document.createDocumentFragment();
+    parts.forEach(function(p) {
+      if (p.tag === 'p') {
+        const el = document.createElement('p');
+        el.textContent = p.text;
+        frag.appendChild(el);
+      } else if (p.tag === 'strong') {
+        const el = document.createElement('strong');
+        el.textContent = p.text;
+        frag.appendChild(el);
+      }
+    });
+    return frag;
+  }
+
+  const HELP_CONTENT = {
+    scribe: { title: 'How to use Scribe', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Open Scribe from the menu bar or press ⌃⌥L. Recording starts immediately. Use the waveform, notes, and model selection. Stop & Save to transcribe.'; d.appendChild(p); return d; } },
+    dictate: { title: 'How to use Dictate', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Double-tap Right Control to toggle recording, or hold it to record while held. Position the cursor where you want text; the floating panel appears and text is pasted when you stop.'; d.appendChild(p); return d; } },
+    transcribe: { title: 'How to use Transcribe', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Open Transcribe from the menu bar. Choose an audio file (.wav, .mp3, .m4a), output folder, and models. Click Transcribe and wait for completion.'; d.appendChild(p); return d; } },
+    permissions: { title: 'Permissions explained', body: function() { const d = document.createDocumentFragment(); ['Microphone: Required for recording.', 'Accessibility: Required for Dictate so Liscribe can paste text into other apps.', 'Input Monitoring: Required for the Dictate hotkey (Right Control) to be detected globally.'].forEach(function(t) { const p = document.createElement('p'); p.textContent = t; d.appendChild(p); }); return d; } },
+    blackhole: { title: 'BlackHole Setup', body: function() { const d = document.createDocumentFragment(); const p1 = document.createElement('p'); p1.textContent = 'BlackHole is a virtual audio driver that lets Liscribe capture system audio alongside your microphone.'; d.appendChild(p1); const p2 = document.createElement('p'); p2.textContent = 'Install: Run brew install blackhole-2ch in Terminal, then restart your Mac.'; d.appendChild(p2); const p3 = document.createElement('p'); p3.textContent = 'Configure: In Audio MIDI Setup, create a Multi-Output Device that includes your speakers and BlackHole 2ch.'; d.appendChild(p3); return d; } },
+    models: { title: 'Downloading models', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Whisper models are stored locally. Download at least one in Settings → Models. Smaller models (tiny, base) are faster; larger ones are more accurate.'; d.appendChild(p); return d; } },
+    hotkeys: { title: 'Hotkey customisation', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Change the Scribe shortcut and Dictate trigger key in Settings → Hotkeys. Dictate supports double-tap and hold; both modes stay active.'; d.appendChild(p); return d; } },
+    data: { title: 'What data Liscribe stores', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'All data stays on your Mac: config in ~/.config/liscribe, cache and models in ~/.cache/liscribe. No data is sent to the internet after model download.'; d.appendChild(p); return d; } },
+    network: { title: 'Network activity', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Liscribe does not make network requests after initial model download. Transcription runs entirely on your machine.'; d.appendChild(p); return d; } },
+    'privacy-policy': { title: 'Privacy policy', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Liscribe does not collect, store, or transmit personal data. All processing is local. No analytics or telemetry.'; d.appendChild(p); return d; } },
+    uninstall: { title: 'Uninstall Liscribe', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Remove the app from /Applications. Delete ~/.config/liscribe and ~/.cache/liscribe to remove config and models. Remove the login item in System Settings → General → Login Items if you enabled Start on Login.'; d.appendChild(p); return d; } }
+  };
+
+  qsAll('.help-topic-list a[data-anchor]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      const anchor = a.dataset.anchor;
+      const c = HELP_CONTENT[anchor];
+      if (c) showHelpDetail(anchor, c.title, c.body());
+    });
+  });
+  el('help-back').addEventListener('click', hideHelpDetail);
+  el('help-github').href = 'https://github.com/your-org/liscribe';
+  el('header-close').addEventListener('click', function() {
+    try {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.close_window === 'function') {
+        window.pywebview.api.close_window();
+      } else {
+        window.close();
+      }
+    } catch (_) { window.close(); }
+  });
+  el('browse-save-folder').addEventListener('click', async function() {
+    const path = await pywebview.api.pick_folder();
+    if (path) { await saveConfigKey('save_folder', path); config.save_folder = path; el('save-folder-display').textContent = path; }
+  });
+  el('default-mic').addEventListener('change', function() { saveConfigKey('default_mic', el('default-mic').value || null); });
+  qsAll('input[name="keep-wav"]').forEach(function(r) { r.addEventListener('change', function() { saveConfigKey('keep_wav', qs('input[name="keep-wav"]:checked').value === 'true'); }); });
+  el('dictation-auto-enter').addEventListener('change', function() {
+    const v = el('dictation-auto-enter').checked;
+    saveConfigKey('dictation_auto_enter', v);
+    el('dictation-auto-enter-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('start-on-login').addEventListener('change', function() {
+    const v = el('start-on-login').checked;
+    saveConfigKey('start_on_login', v);
+    el('start-on-login-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('change-app').addEventListener('click', async function() {
+    const result = await pywebview.api.pick_app();
+    if (result && result.name) { await saveConfigKey('open_transcript_app', result.name); config.open_transcript_app = result.name; el('open-transcript-app-display').textContent = result.name; }
+  });
+  document.querySelectorAll('.settings-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() { showTab(tab.dataset.tab); });
+  });
+  /* Deep-link from e.g. Dictate Setup Required "Help ↗": URL has #help/<anchor>; open to that section. */
+  const hash = window.location.hash;
+  if (hash && hash.indexOf('#help/') === 0) {
+    const anchor = hash.slice(6);
+    showTab('help');
+    setTimeout(function() { const link = document.querySelector('.help-topic-list a[data-anchor="' + anchor + '"]'); if (link) link.click(); }, 100);
+  }
+  window.addEventListener('load', async function() {
+    await new Promise(function(r) { setTimeout(r, API_DELAY_MS); });
+    await loadMics();
+    await loadConfig();
+    applyConfigToGeneral();
+    applyConfigToHotkeys();
+    refreshModels();
+    refreshPermissions();
+  });
+})();
+</script>
 </body>
 </html>

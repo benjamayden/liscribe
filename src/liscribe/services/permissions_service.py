@@ -53,6 +53,23 @@ def check_accessibility() -> bool:
         return False
 
 
+def check_microphone() -> bool:
+    """Return True if this process has Microphone permission (or can list input devices).
+
+    Best-effort: try to query default input device. On macOS without mic permission
+    this may still succeed depending on OS version; used for Settings → Deps display.
+    """
+    if not _is_macos():
+        return False
+    try:
+        import sounddevice as sd
+        _ = sd.query_devices(kind="input")
+        return True
+    except Exception:
+        logger.debug("Microphone check failed", exc_info=True)
+        return False
+
+
 def check_input_monitoring() -> bool:
     """Return True if this process has Input Monitoring permission.
 
@@ -65,6 +82,9 @@ def check_input_monitoring() -> bool:
     Note: On macOS 14+ pynput may raise during listener start if permission
     is absent. This check is advisory — the actual failure will surface when
     HotkeyService tries to start the listener.
+
+    WARNING: Do not call this from the pywebview JS bridge thread (e.g. from
+    Settings panel). Use _check_input_monitoring_subprocess() there instead.
     """
     if not _is_macos():
         return False
@@ -80,6 +100,48 @@ def check_input_monitoring() -> bool:
     except Exception:
         logger.debug("Input Monitoring check failed", exc_info=True)
         return False
+
+
+def _check_input_monitoring_subprocess() -> bool:
+    """Run the pynput listener check in a subprocess so the main process (or
+    bridge thread) never creates a listener. Creating a listener on the
+    pywebview bridge thread crashes the app on macOS.
+    """
+    if not _is_macos():
+        return False
+    script = """
+from pynput import keyboard
+try:
+    with keyboard.Listener(on_press=None, on_release=None):
+        pass
+    print('true')
+except Exception:
+    print('false')
+"""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # Subprocess exits 0 and prints 'true' when granted; else False.
+        return result.stdout.strip() == "true" if result.returncode == 0 else False
+    except Exception:
+        return False
+
+
+def get_all_permissions() -> dict[str, bool]:
+    """Return live status for all permissions used in Settings → Deps.
+
+    Keys: microphone, accessibility, input_monitoring.
+    Checked live every call — never cached.
+    """
+    return {
+        "microphone": check_microphone(),
+        "accessibility": check_accessibility(),
+        "input_monitoring": _check_input_monitoring_subprocess(),
+    }
 
 
 def has_dictate_permissions() -> tuple[bool, list[str]]:

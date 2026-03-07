@@ -60,6 +60,7 @@ from PyObjCTools import AppHelper
 from liscribe import app_instance
 from liscribe.bridge.dictate_bridge import DictateBridge
 from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
+from liscribe.bridge.settings_bridge import SettingsBridge
 from liscribe.bridge.transcribe_bridge import TranscribeBridge
 from liscribe.controllers.dictate_controller import (
     ERROR_NO_MODEL,
@@ -107,15 +108,23 @@ webview.renderer = _cocoa_guilib.renderer
 
 def _window_will_close_no_stop(self, notification):
     """Same as pywebview's windowWillClose_ but never stop the app when last window closes."""
-    i = BrowserView.get_instance("window", notification.object())
-    del BrowserView.instances[i.uid]
+    try:
+        i = BrowserView.get_instance("window", notification.object())
+    except (KeyError, AttributeError, TypeError) as e:
+        logger.warning("windowWillClose: could not get BrowserView instance: %s", e)
+        return
+    try:
+        del BrowserView.instances[i.uid]
+    except Exception as e:
+        logger.warning("windowWillClose: could not remove BrowserView instance: %s", e)
     if i.pywebview_window in webview.windows:
         webview.windows.remove(i.pywebview_window)
-    i.webview.setNavigationDelegate_(None)
-    i.webview.setUIDelegate_(None)
-    i.webview.loadHTMLString_baseURL_("", None)
-    i.webview.removeFromSuperview()
-    i.webview = None
+    if i.webview is not None:
+        i.webview.setNavigationDelegate_(None)
+        i.webview.setUIDelegate_(None)
+        i.webview.loadHTMLString_baseURL_("", None)
+        i.webview.removeFromSuperview()
+        i.webview = None
     i.closed.set()
     # Do not call app.stop_() / abortModal(); keep menu bar app running.
 
@@ -142,6 +151,10 @@ class _ScribeAppActionsImpl:
         self._app._open_transcribe_with_prefill(wav_path, output_folder=save_folder)
 
 
+# Menu bar icon/title: change this to use a different emoji or set app.icon to an image path later.
+MENU_BAR_TITLE = "🎙"
+
+
 class LiscribeApp(rumps.App):
     """Menu bar application.
 
@@ -156,7 +169,7 @@ class LiscribeApp(rumps.App):
         model: ModelService,
         hotkey: HotkeyService,
     ) -> None:
-        super().__init__("🎙", quit_button="Quit")
+        super().__init__(MENU_BAR_TITLE, quit_button="Quit")
 
         self._config = config
         self._audio = audio
@@ -188,7 +201,19 @@ class LiscribeApp(rumps.App):
             can_dictate=has_dictate_permissions,
             on_paste_complete=lambda: AppHelper.callAfter(self._close_dictate_panel),
         )
-        self._dictate_bridge = DictateBridge(controller=self._dictate_ctrl)
+        self._dictate_bridge = DictateBridge(
+            controller=self._dictate_ctrl,
+            on_open_settings_help=lambda anchor: AppHelper.callAfter(
+                self.open_settings_to_help, anchor
+            ),
+        )
+
+        self._settings_bridge = SettingsBridge(
+            config=config,
+            model=model,
+            audio=audio,
+            on_close=lambda: AppHelper.callAfter(self._close_settings_panel),
+        )
 
         # name → open webview.Window (None-entry means window was closed)
         self._panels: dict[str, webview.Window] = {}
@@ -207,11 +232,15 @@ class LiscribeApp(rumps.App):
     # Panel management
     # ------------------------------------------------------------------
 
-    def _panel_url(self, name: str) -> str:
+    def _panel_url(self, name: str, fragment: str | None = None) -> str:
         """URL for the panel. Prefer HTTP so WKWebView loads reliably on macOS."""
         if self._panel_http_base is not None:
-            return f"{self._panel_http_base}panels/{name}.html"
-        return (PANELS_DIR / f"{name}.html").as_uri()
+            base = f"{self._panel_http_base}panels/{name}.html"
+        else:
+            base = (PANELS_DIR / f"{name}.html").as_uri()
+        if fragment:
+            return base + "#" + fragment
+        return base
 
     def _ensure_panel_server(self) -> None:
         """Start the static server for panel assets once per app lifetime (see _panel_http_base comment)."""
@@ -233,8 +262,9 @@ class LiscribeApp(rumps.App):
         height: int = 620,
         resizable: bool = True,
         js_api: object | None = None,
+        fragment: str | None = None,
     ) -> None:
-        """Open a named panel, raising it if already open."""
+        """Open a named panel, raising it if already open. fragment is optional hash (e.g. help/accessibility)."""
         # Bring app to front so the panel surfaces above other windows (e.g. terminal).
         AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         self._ensure_panel_server()
@@ -242,6 +272,8 @@ class LiscribeApp(rumps.App):
         existing = self._panels.get(name)
         if existing is not None:
             try:
+                if fragment and name == "settings":
+                    existing.load_url(self._panel_url(name, fragment=fragment))
                 existing.show()
                 return
             except Exception:
@@ -251,9 +283,10 @@ class LiscribeApp(rumps.App):
         create_kwargs: dict[str, Any] = {} if js_api is None else {"js_api": js_api}
         if name == "scribe":
             create_kwargs["confirm_close"] = True  # See _set_scribe_confirm_close and architecture.md
+        url = self._panel_url(name, fragment=fragment)
         window = webview.create_window(
             title,
-            self._panel_url(name),
+            url,
             width=width,
             height=height,
             resizable=resizable,
@@ -297,6 +330,9 @@ class LiscribeApp(rumps.App):
 
         # Phase 5: Transcribe bridge needs window reference for file/folder dialogs.
         if name == "transcribe" and js_api is not None and hasattr(js_api, "set_window"):
+            js_api.set_window(window)
+        # Phase 7: Settings bridge needs window for pick_folder, pick_app, navigate_help.
+        if name == "settings" and js_api is not None and hasattr(js_api, "set_window"):
             js_api.set_window(window)
 
     # ------------------------------------------------------------------
@@ -488,6 +524,16 @@ class LiscribeApp(rumps.App):
                 logger.warning("Could not destroy Dictate panel: %s", exc)
             self._panels.pop("dictate", None)
 
+    def _close_settings_panel(self) -> None:
+        """Close the Settings panel (called from bridge when user clicks header close)."""
+        w = self._panels.get("settings")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not destroy Settings panel: %s", exc)
+            self._panels.pop("settings", None)
+
     def _show_notification(self, title: str, message: str) -> None:
         try:
             import rumps
@@ -500,7 +546,6 @@ class LiscribeApp(rumps.App):
 
         Opens the dictate.html panel in setup-required mode by passing the
         missing permission list as a query parameter.
-        # TODO Phase 7: deep-link to Settings → Help → Permissions anchor.
         """
         names = ",".join(missing)
         self._ensure_panel_server()
@@ -597,7 +642,38 @@ class LiscribeApp(rumps.App):
             _set_scribe_confirm_close(w, False)
 
     def open_settings(self, _: Any = None) -> None:
-        self._open_panel("settings", "Settings", width=560, height=580)
+        """Open Settings panel. Wrapped so an exception here does not quit the app."""
+        try:
+            self._open_panel(
+                "settings",
+                "Settings",
+                width=560,
+                height=580,
+                js_api=self._settings_bridge,
+            )
+        except Exception as exc:
+            logger.exception("Failed to open Settings panel: %s", exc)
+            try:
+                msg = str(exc)[:80] if str(exc) else "See console for details."
+                rumps.notification(
+                    "Liscribe",
+                    "Could not open Settings",
+                    msg,
+                    sound=False,
+                )
+            except Exception:
+                pass
+
+    def open_settings_to_help(self, anchor: str) -> None:
+        """Open Settings panel and navigate to the given Help section (e.g. permissions, blackhole)."""
+        self._open_panel(
+            "settings",
+            "Settings",
+            width=560,
+            height=580,
+            js_api=self._settings_bridge,
+            fragment="help/" + (anchor or "permissions"),
+        )
 
 
 def main() -> None:

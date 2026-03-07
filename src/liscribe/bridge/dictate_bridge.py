@@ -11,7 +11,7 @@ No business logic here. All calls delegate to DictateController.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from liscribe.controllers.dictate_controller import DictateController
@@ -26,8 +26,17 @@ class DictateBridge:
     it as window.pywebview.api in the panel HTML.
     """
 
-    def __init__(self, controller: "DictateController") -> None:
+    def __init__(
+        self,
+        controller: "DictateController",
+        on_open_settings_help: Callable[[str], None] | None = None,
+    ) -> None:
         self._controller = controller
+        self._on_open_settings_help = on_open_settings_help or (lambda _: None)
+
+    def open_settings_help(self, anchor: str) -> None:
+        """Open Settings panel to the given Help section (e.g. permissions). Used by Setup Required modal."""
+        self._on_open_settings_help(anchor)
 
     def get_waveform(self, bars: int = 30) -> list[float]:
         """Return audio level bars (0.0–1.0) for waveform rendering.

@@ -138,6 +138,7 @@
     <div class="setup-actions">
       <button class="btn btn-primary" id="btn-open-settings">Open Settings &rarr;</button>
       <button class="btn btn-ghost" id="btn-not-now">Not now</button>
+      <button class="btn btn-ghost" id="btn-help">Help &rarr;</button>
     </div>
   </div>
 
@@ -290,6 +291,12 @@
         ? 'com.apple.preference.security?Privacy_Accessibility'
         : 'com.apple.preference.security?Privacy_ListenEvent';
       window.location.href = 'x-apple.systempreferences:' + pane;
+    });
+
+    document.getElementById('btn-help').addEventListener('click', function() {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_settings_help === 'function') {
+        window.pywebview.api.open_settings_help('permissions');
+      }
     });
   </script>
 </body>

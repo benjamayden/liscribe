@@ -26,6 +26,7 @@
 | 8 | Onboarding | ⬜ |
 | 9 | Bundle + install | ⬜ |
 | 10 | Word Replacement | ⬜ |
+| 11 | Refactor (panel layer + services) | ⬜ |
 
 ---
 
@@ -681,6 +682,116 @@ Must cover (all written before `replacements.py` is implemented):
 - [ ] Empty trigger or empty output shows a validation error and is never saved
 - [ ] All rules persist across app restarts
 - [ ] `.venv/bin/pytest` count increased from Phase 9's final count
+
+---
+
+## Phase 11 — Refactor (panel layer + services)
+
+**Goal:** Reduce duplication and special-case logic identified in the Phase 7
+Settings review (`docs/review-diff.md`). No new features; behaviour unchanged.
+All refactors are optional improvements — do only if time permits and tests
+stay green.
+
+**Prerequisite:** Phases 1–10 done. Refactor is safe to run after Word
+Replacement (Phase 10) so that Scribe, Dictate, Transcribe, Settings, and
+Replacements are all stable.
+
+---
+
+**1. Bridge protocol**
+
+- Define a `PanelBridge` protocol (or abstract base) in e.g.
+  `src/liscribe/bridge/protocols.py`: optional `set_window(window)`, optional
+  `close_window()`.
+- ScribeBridge, TranscribeBridge, DictateBridge, SettingsBridge implement or
+  extend it where applicable.
+- Reduces repeated "if name == X and hasattr(js_api, 'set_window')" in
+  `app._open_panel`; contract is explicit.
+
+**Files:** `src/liscribe/bridge/protocols.py` (new), each bridge module,
+`src/liscribe/app.py`.
+
+---
+
+**2. Panel registry**
+
+- Replace panel-specific conditionals in `_open_panel` with a registry: name →
+  `{url, title, width, height, js_api, confirm_close?, set_window?, fragment?}`.
+- Adding a new panel = one registry entry; no new `if name == "..."` in
+  `_open_panel`.
+
+**Files:** `src/liscribe/app.py` (and optionally a small `panel_registry.py` or
+dict in app).
+
+---
+
+**3. Permissions “safe” check**
+
+- Single abstraction for “get input monitoring status” that chooses in-process
+  vs subprocess based on caller context (e.g. bridge thread vs main thread), or
+  always use subprocess for `get_all_permissions()` and keep in-process only for
+  `has_dictate_permissions()` with a shared implementation (e.g. one script
+  file or one helper that subprocess invokes).
+- Goal: pynput listener check implemented once; no duplicated script string.
+
+**Files:** `src/liscribe/services/permissions_service.py`, possibly a small
+`run_script_subprocess(script: str) -> (stdout, returncode)` helper.
+
+---
+
+**4. UI prefs API**
+
+- Formalise “UI-only prefs” (e.g. `start_on_login`) as one interface: one file
+  (`ui_prefs.json`), one module or class with get/set by key. ConfigService
+  delegates to it for those keys so the bridge does not need special cases in
+  `set_config` for “not in config.json”.
+
+**Files:** `src/liscribe/services/config_service.py`, optionally
+`src/liscribe/services/ui_prefs.py` (new). `settings_bridge.set_config` can
+route via the API instead of hardcoding keys.
+
+---
+
+**5. Subprocess helper**
+
+- Add `run_python_script(script: str, timeout: float = 5) -> (stdout: str,
+  returncode: int)` (or similar) in e.g. `src/liscribe/utils/subprocess_helpers.py`.
+- `_check_input_monitoring_subprocess` calls it with the existing script string.
+- Makes it easy to add other “run snippet in subprocess” checks without
+  duplicating subprocess boilerplate.
+
+**Files:** New helper module, `src/liscribe/services/permissions_service.py`.
+
+---
+
+**6. Panel bootstrap (Settings)**
+
+- Refactor Settings load handler into a small pattern: list of async data
+  loaders (loadMics, loadConfig, …) and list of render steps
+  (applyConfigToGeneral, applyConfigToHotkeys, refreshModels, refreshPermissions).
+- Same behaviour; order and dependencies explicit and easier to test or reuse.
+
+**Files:** `src/liscribe/ui/panels/settings.html` (JS only).
+
+---
+
+**Done condition:**
+
+- [ ] All existing tests pass; no behaviour change to user-visible features.
+- [ ] Each refactor item (1–6) is either implemented and documented or
+  explicitly skipped with a one-line “Phase 11: skipped — reason” in the
+  relevant file or in the plan.
+- [ ] If Bridge protocol or Panel registry is done: `_open_panel` has no new
+  special cases; new panels would add a registry entry only.
+- [ ] If Permissions safe check is done: input monitoring check logic exists in
+  one place only.
+- [ ] If UI prefs API is done: ConfigService (or dedicated module) exposes one
+  interface for UI prefs; bridge does not hardcode key names for “not in
+  config.json”.
+- [ ] If Subprocess helper is done: permissions_service uses it; no duplicated
+  subprocess run logic.
+- [ ] If Panel bootstrap is done: Settings load is a clear sequence of loaders
+  + render steps.
 
 ---
 

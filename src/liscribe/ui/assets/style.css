@@ -75,6 +75,14 @@ h3 { font-size: 13px; font-weight: 600; }
   flex-shrink: 0;
 }
 
+/* ── Utilities (settings + panels) ── */
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+.mb-12 { margin-bottom: 12px; }
+.text-muted { color: var(--text-muted); font-size: 13px; }
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;

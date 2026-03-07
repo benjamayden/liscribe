@@ -40,6 +40,9 @@ C4Container
 **Single instance**  
 Only one Liscribe process runs per user. A file lock under `~/.cache/liscribe` plus a Unix socket are used so a second launch does not start a duplicate; instead it signals the existing instance to activate (bring to front) and exits. See `app_instance` in the codebase.
 
+**Menu bar icon**  
+The menu bar item is controlled in `app.py`: the constant `MENU_BAR_TITLE` (default `"🎙"`) is passed to `rumps.App`. To change it, edit `MENU_BAR_TITLE` to another string (e.g. another emoji or short label). To use a custom image instead, set `app.icon = "/path/to/icon.png"` after creating the app (rumps uses the image as a template icon on macOS).
+
 ---
 
 ## Level 3 — Component (Panel Layer)
