@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from liscribe.services.config_service import ConfigService
@@ -97,6 +99,22 @@ class TestTypedProperties:
 
     def test_open_transcript_app_default(self, svc):
         assert svc.open_transcript_app == "cursor"
+
+    def test_open_transcript_calls_open_with_default_app(self, svc):
+        svc.open_transcript_app = "default"
+        with patch("liscribe.services.config_service.subprocess.run") as run:
+            svc.open_transcript("/tmp/out.md")
+            run.assert_called_once()
+            args = run.call_args[0][0]
+            assert args == ["open", "/tmp/out.md"]
+
+    def test_open_transcript_calls_open_a_when_app_set(self, svc):
+        svc.open_transcript_app = "Cursor"
+        with patch("liscribe.services.config_service.subprocess.run") as run:
+            svc.open_transcript("/tmp/out.md")
+            run.assert_called_once()
+            args = run.call_args[0][0]
+            assert args == ["open", "-a", "Cursor", "/tmp/out.md"]
 
     def test_launch_hotkey_none_by_default(self, svc):
         assert svc.launch_hotkey is None

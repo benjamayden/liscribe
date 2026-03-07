@@ -404,3 +404,11 @@ class ScribeController:
     def set_models(self, model_names: list[str]) -> None:
         """Set the models to use for transcription after stop."""
         self._selected_models = list(model_names)
+
+    # ------------------------------------------------------------------
+    # Open transcript in external app (same behaviour as Transcribe panel)
+    # ------------------------------------------------------------------
+
+    def open_transcript(self, file_path: str) -> None:
+        """Open the transcript file with the app set in Settings."""
+        self._config.open_transcript(file_path)

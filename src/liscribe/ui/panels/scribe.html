@@ -41,6 +41,7 @@
       min-width: 52px; font-size: 11px; color: var(--text-muted); text-align: right;
     }
     .file-path-line { font-size: 11px; color: var(--text-muted); word-break: break-all; margin-top: 2px; }
+    .open-transcript-btn { margin-top: 4px; font-size: 12px; }
     .view { display: none; flex-direction: column; height: 100%; }
     .view.active { display: flex; }
     #cancel-overlay {
@@ -295,6 +296,11 @@
       pathLine.className = 'file-path-line';
       pathLine.id = 'path-' + t.model_name;
       list.appendChild(pathLine);
+
+      const openWrap = document.createElement('div');
+      openWrap.className = 'open-transcript-wrap';
+      openWrap.id = 'open-wrap-' + t.model_name;
+      list.appendChild(openWrap);
     });
   }
 
@@ -317,6 +323,17 @@
         }
         if (pathEl && p.md_path) pathEl.textContent = p.md_path;
         if (!p.is_done) allDone = false;
+        if (p.is_done && p.md_path) {
+          const wrap = el('open-wrap-' + p.model_name);
+          if (wrap && wrap.children.length === 0) {
+            const openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'btn btn-secondary open-transcript-btn';
+            openBtn.textContent = 'Open Transcript';
+            openBtn.addEventListener('click', () => pywebview.api.open_transcript(p.md_path));
+            wrap.appendChild(openBtn);
+          }
+        }
       });
 
       if (allDone) {

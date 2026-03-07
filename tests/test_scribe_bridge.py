@@ -401,3 +401,9 @@ class TestOpenInTranscribe:
         )
         bridge.open_in_transcribe("/tmp/recording.wav", save_folder="/out")
         on_open.assert_called_once_with("/tmp/recording.wav", "/out")
+
+
+class TestOpenTranscript:
+    def test_delegates_to_controller(self, bridge, controller):
+        bridge.open_transcript("/tmp/out_base.md")
+        controller.open_transcript.assert_called_once_with("/tmp/out_base.md")

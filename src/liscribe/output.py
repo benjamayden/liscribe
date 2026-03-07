@@ -225,8 +225,13 @@ def save_transcript(
     suffix = f"_{model_name}" if include_model_in_filename and model_name else ""
     filename = f"{stem}{suffix}.md"
 
-    parent = Path(output_dir) if output_dir else audio_path.parent
+    parent = (
+        Path(output_dir).expanduser().resolve()
+        if output_dir
+        else audio_path.parent
+    )
     md_path = parent / filename
+    parent.mkdir(parents=True, exist_ok=True)
 
     content = build_markdown(
         result=result,

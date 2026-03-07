@@ -1,5 +1,5 @@
 
-A phase of Liscribe v2 has been declared done. Review it now.
+Look over the diff, check changes. Review it now.
 Be direct. Do not soften findings. Every unflagged issue becomes
 technical debt that costs more to fix later.
 

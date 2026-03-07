@@ -217,16 +217,9 @@ class TestGetProgress:
 
 
 class TestOpenTranscript:
-    def test_calls_subprocess_with_open_and_app_and_path(self, controller, config_svc):
-        config_svc.open_transcript_app = "Cursor"
-        with patch("subprocess.run") as run:
-            controller.open_transcript("/tmp/out.md")
-            run.assert_called_once()
-            args = run.call_args[0][0]
-            assert "open" in args
-            assert "-a" in args
-            assert "Cursor" in args or any("Cursor" in str(a) for a in args)
-            assert "/tmp/out.md" in args or any("/tmp/out.md" in str(a) for a in args)
+    def test_delegates_to_config_open_transcript(self, controller, config_svc):
+        controller.open_transcript("/tmp/out.md")
+        config_svc.open_transcript.assert_called_once_with("/tmp/out.md")
 
 
 # ---------------------------------------------------------------------------

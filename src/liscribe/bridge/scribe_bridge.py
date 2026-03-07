@@ -63,6 +63,10 @@ class ScribeBridge:
     def get_save_path(self) -> str:
         return self._controller.save_path
 
+    def open_transcript(self, file_path: str) -> None:
+        """Open the transcript file with the app set in Settings (same as Transcribe panel)."""
+        self._controller.open_transcript(file_path)
+
     # ------------------------------------------------------------------
     # Session configuration
     # ------------------------------------------------------------------

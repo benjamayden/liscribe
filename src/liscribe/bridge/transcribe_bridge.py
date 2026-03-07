@@ -100,9 +100,9 @@ class TranscribeBridge:
             return None
         try:
             result = self._window.create_file_dialog(
-                webview.OPEN_DIALOG,
+                webview.FileDialog.OPEN,
                 allow_multiple=False,
-                file_types=(TRANSCRIBE_FILE_TYPES,),
+                file_types=TRANSCRIBE_FILE_TYPES,
             )
             if result and len(result) > 0:
                 return result[0]
@@ -117,7 +117,7 @@ class TranscribeBridge:
             return None
         try:
             result = self._window.create_file_dialog(
-                webview.FOLDER_DIALOG,
+                webview.FileDialog.FOLDER,
                 allow_multiple=False,
             )
             if result and len(result) > 0:

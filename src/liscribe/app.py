@@ -19,6 +19,7 @@ from typing import Any
 
 import rumps
 import webview
+from webview import http as webview_http
 
 import AppKit
 
@@ -42,9 +43,32 @@ if sys.platform != "darwin":
 # cocoa.py imports NSApplication.sharedApplication() at class-definition
 # time, so guilib is usable as soon as the module is imported.
 import webview.platforms.cocoa as _cocoa_guilib  # noqa: E402
+from webview.platforms.cocoa import BrowserView  # noqa: E402
 
 webview.guilib = _cocoa_guilib
 webview.renderer = _cocoa_guilib.renderer
+
+# Duplicates webview/platforms/cocoa.py BrowserView.WindowDelegate.windowWillClose_.
+# We omit app.stop_() so the menu bar app stays running when the last panel closes.
+# Fragile on pywebview upgrade — re-check if upgrading pywebview.
+
+
+def _window_will_close_no_stop(self, notification):
+    """Same as pywebview's windowWillClose_ but never stop the app when last window closes."""
+    i = BrowserView.get_instance("window", notification.object())
+    del BrowserView.instances[i.uid]
+    if i.pywebview_window in webview.windows:
+        webview.windows.remove(i.pywebview_window)
+    i.webview.setNavigationDelegate_(None)
+    i.webview.setUIDelegate_(None)
+    i.webview.loadHTMLString_baseURL_("", None)
+    i.webview.removeFromSuperview()
+    i.webview = None
+    i.closed.set()
+    # Do not call app.stop_() / abortModal(); keep menu bar app running.
+
+
+_cocoa_guilib.BrowserView.WindowDelegate.windowWillClose_ = _window_will_close_no_stop
 
 
 class LiscribleApp(rumps.App):
@@ -87,6 +111,9 @@ class LiscribleApp(rumps.App):
 
         # name → open webview.Window (None-entry means window was closed)
         self._panels: dict[str, webview.Window] = {}
+        # Panel HTML is served over HTTP so WKWebView loads reliably on macOS (file:// can show blank).
+        self._panel_http_base: str | None = None
+        self._panel_server: webview_http.BottleServer | None = None
 
         self.menu = [
             rumps.MenuItem("Scribe  ⌃⌥L", callback=self.open_scribe),
@@ -100,7 +127,22 @@ class LiscribleApp(rumps.App):
     # ------------------------------------------------------------------
 
     def _panel_url(self, name: str) -> str:
+        """URL for the panel. Prefer HTTP so WKWebView loads reliably on macOS."""
+        if self._panel_http_base is not None:
+            return f"{self._panel_http_base}panels/{name}.html"
         return (PANELS_DIR / f"{name}.html").as_uri()
+
+    def _ensure_panel_server(self) -> None:
+        """Start the static server for panel assets once per app lifetime (see _panel_http_base comment)."""
+        if self._panel_http_base is not None:
+            return
+        ui_dir = str(PANELS_DIR.parent)
+        address, _common_path, server = webview_http.BottleServer.start_server(
+            [ui_dir], http_port=None
+        )
+        self._panel_http_base = address
+        self._panel_server = server
+        logger.debug("Panel HTTP server at %s", address)
 
     def _open_panel(
         self,
@@ -114,6 +156,7 @@ class LiscribleApp(rumps.App):
         """Open a named panel, raising it if already open."""
         # Bring app to front so the panel surfaces above other windows (e.g. terminal).
         AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        self._ensure_panel_server()
 
         existing = self._panels.get(name)
         if existing is not None:
@@ -150,6 +193,8 @@ class LiscribleApp(rumps.App):
             window.js_api_endpoint = None
         if window.gui is None:
             window.gui = webview.guilib
+        # Cocoa backend loads window.real_url; without _initialize() it stays None and DEFAULT_HTML is shown.
+        window.real_url = window.original_url
 
         # guilib.create_window() checks isRunning() on BrowserView.app
         # (= NSApplication.sharedApplication()) and skips app.run() since

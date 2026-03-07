@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import subprocess
 from typing import Any
 
 from liscribe import config as _config
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigService:
@@ -92,6 +96,15 @@ class ConfigService:
     @open_transcript_app.setter
     def open_transcript_app(self, app: str) -> None:
         self.set("open_transcript_app", app)
+
+    def open_transcript(self, file_path: str) -> None:
+        """Open the transcript file with the app set in Settings (macOS open/open -a)."""
+        app_name = self.open_transcript_app
+        if not app_name or app_name == "default":
+            subprocess.run(["open", file_path], check=False)
+            return
+        subprocess.run(["open", "-a", app_name, file_path], check=False)
+        logger.debug("Opened %s with %s", file_path, app_name)
 
     @property
     def launch_hotkey(self) -> str | None:

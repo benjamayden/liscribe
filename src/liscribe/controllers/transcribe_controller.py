@@ -8,7 +8,6 @@ No direct engine imports.
 from __future__ import annotations
 
 import logging
-import subprocess
 import threading
 from dataclasses import dataclass
 from enum import Enum
@@ -231,12 +230,4 @@ class TranscribeController:
 
     def open_transcript(self, file_path: str) -> None:
         """Open the transcript file with the app set in Settings."""
-        app = self._config.open_transcript_app
-        if not app or app == "default":
-            subprocess.run(["open", file_path], check=False)
-            return
-        subprocess.run(
-            ["open", "-a", app, file_path],
-            check=False,
-        )
-        logger.debug("Opened %s with %s", file_path, app)
+        self._config.open_transcript(file_path)

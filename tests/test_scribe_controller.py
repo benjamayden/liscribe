@@ -727,3 +727,14 @@ class TestGetTranscriptionProgress:
         ]
         result = controller.get_transcription_progress()
         assert result[0]["error"] == "model not found"
+
+
+# ---------------------------------------------------------------------------
+# open_transcript()
+# ---------------------------------------------------------------------------
+
+
+class TestOpenTranscript:
+    def test_delegates_to_config_open_transcript(self, controller, config_svc):
+        controller.open_transcript("/tmp/out.md")
+        config_svc.open_transcript.assert_called_once_with("/tmp/out.md")
