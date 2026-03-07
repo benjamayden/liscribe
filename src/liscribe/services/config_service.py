@@ -35,36 +35,53 @@ def _set_login_item(enabled: bool) -> None:
     """Register or remove Liscribe as a login item on macOS. No-op if not inside .app."""
     app_path = _get_app_bundle_path()
     if app_path is None:
-        logger.debug("Not running from .app bundle; login item not changed")
+        logger.info(
+            "Start on Login only works when running the installed .app; not changing login items"
+        )
         return
-    path_str = str(app_path)
+    path_str = str(app_path.resolve())
     app_name = app_path.stem  # e.g. "Liscribe" from "Liscribe.app"
     if enabled:
+        # Use POSIX file so System Events gets a proper file reference (required on some macOS versions).
+        script = (
+            f'tell application "System Events" to make login item at end '
+            f'with properties {{path:POSIX file "{path_str}", hidden:false}}'
+        )
         try:
-            subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    f'tell application "System Events" to make login item at end with properties {{path:"{path_str}", hidden:false}}',
-                ],
+            result = subprocess.run(
+                ["osascript", "-e", script],
                 capture_output=True,
+                text=True,
                 timeout=5,
                 check=False,
             )
+            if result.returncode != 0:
+                logger.warning(
+                    "Could not add login item: osascript exit %s stderr=%s",
+                    result.returncode,
+                    (result.stderr or result.stdout or "").strip() or "(none)",
+                )
         except Exception as exc:
             logger.warning("Could not add login item: %s", exc)
     else:
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [
                     "osascript",
                     "-e",
                     f'tell application "System Events" to delete login item "{app_name}"',
                 ],
                 capture_output=True,
+                text=True,
                 timeout=5,
                 check=False,
             )
+            if result.returncode != 0:
+                logger.warning(
+                    "Could not remove login item: osascript exit %s stderr=%s",
+                    result.returncode,
+                    (result.stderr or result.stdout or "").strip() or "(none)",
+                )
         except Exception as exc:
             logger.warning("Could not remove login item: %s", exc)
 

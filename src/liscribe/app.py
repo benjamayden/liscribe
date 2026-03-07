@@ -230,32 +230,27 @@ def _set_process_display_name(name: str) -> None:
         logger.debug("Could not set process display name: %s", exc)
 
 
+# Menu bar icon layout: change these to resize the button or the symbol inside it.
+_MENUBAR_ICON_WIDTH = 20.0
+_MENUBAR_ICON_HEIGHT = 20.0
+_MENUBAR_ICON_INSET = 0.0  # Padding around symbol; larger = smaller symbol, more margin.
+
+
 def _menubar_icon_image() -> object | None:
-    """Return an NSImage: dark grey rounded rect with white mic symbol, or None if unavailable."""
+    """Return an NSImage: white waveform symbol for the menu bar, or None if unavailable."""
     try:
         symbol = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-            "mic", None
+            "waveform", None
         )
         if symbol is None:
             return None
-        # Menu bar icon size (points); use 2x for sharp retina.
-        w, h = 22.0, 22.0
+        w, h = _MENUBAR_ICON_WIDTH, _MENUBAR_ICON_HEIGHT
+        inset = _MENUBAR_ICON_INSET
         size = AppKit.NSMakeSize(w, h)
         img = AppKit.NSImage.alloc().initWithSize_(size)
         img.lockFocus()
-        # Dark grey rounded rect background so the icon is visible on any menu bar.
-        gray = 0
-        AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
-            gray, gray, gray, 0
-        ).set()
-        rect = AppKit.NSMakeRect(0, 0, w, h)
-        path = AppKit.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-            rect, 2, 4
-        )
-        path.fill()
-        # Draw mic symbol in white: fill white then use symbol as mask (DestinationIn = keep where symbol is opaque).
-        inset = 5.0
-        symbol_rect = AppKit.NSMakeRect(inset, inset, w - 2 * inset, h - 1.5 * inset)
+        # Draw symbol in white: fill white rect then use symbol as mask (DestinationIn).
+        symbol_rect = AppKit.NSMakeRect(inset, inset, w - 2 * inset, h - 2 * inset)
         AppKit.NSColor.whiteColor().set()
         AppKit.NSRectFill(symbol_rect)
         symbol.drawInRect_fromRect_operation_fraction_(

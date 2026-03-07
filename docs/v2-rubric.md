@@ -598,20 +598,22 @@ If Accessibility or Input Monitoring permission is missing when Dictate fires, t
 - Start on Login: on/off
 
 **Success criteria:**
-- [ ] All global settings persist across app restarts
-- [ ] Model manager shows accurate status and file size
-- [ ] Downloading shows inline progress and confirms on completion
-- [ ] Removing a default model prompts replacement selection before deletion proceeds
-- [ ] Permission status is live (not cached) in Dependencies tab
-- [ ] Each permission has a one-tap path to the correct System Settings pane
-- [ ] "Open transcripts with" picker opens /Applications; selected app icon and name shown; persists across restarts
-- [ ] "Open Transcript" button opens the file via `open -a AppName file` — no PATH issues, no shell alias needed
-- [ ] Start on Login toggle registers and deregisters the app as a login item immediately on toggle
-- [ ] Help tab renders all topics; each topic opens a detail page within the tab
-- [ ] "Help ↗" from any Setup Required modal navigates directly to the correct Help page
-- [ ] Privacy policy is readable inline — no network access required
-- [ ] GitHub link opens in default browser
-- [ ] Setup Required modal fires for any workflow that requires a missing configuration — not just Dictate
+- [x] All global settings persist across app restarts
+- [x] Model manager shows accurate status and file size
+- [x] Downloading shows inline progress and confirms on completion
+- [x] Removing a default model prompts replacement selection before deletion proceeds
+- [x] Permission status is live (not cached) in Dependencies tab
+- [x] Each permission has a one-tap path to the correct System Settings pane
+- [x] "Open transcripts with" picker opens /Applications; selected app icon and name shown; persists across restarts
+- [x] "Open Transcript" button opens the file via `open -a AppName file` — no PATH issues, no shell alias needed
+- [x] Start on Login toggle registers and deregisters the app as a login item immediately on toggle
+- [x] Help tab renders all topics; each topic opens a detail page within the tab
+- [x] "Help ↗" from any Setup Required modal navigates directly to the correct Help page
+- [x] Privacy policy is readable inline — no network access required
+- [x] GitHub link opens in default browser
+- [x] Setup Required modal fires for any workflow that requires a missing configuration — not just Dictate
+
+Hotkey changes (Scribe shortcut, Dictate trigger key) take effect after the user clicks "Save and quit" in Settings → Hotkeys; the app restarts (launchd one-shot when .app, subprocess when run from command line).
 
 ---
 
@@ -775,5 +777,5 @@ Add / Edit rule form (shown inline):
 
 ---
 
-*Status: In progress — Scribe, Transcribe, and Dictate verified per plan-v2 Phase 4–6. Settings, Onboarding, Word Replacement pending.*
+*Status: In progress — Scribe, Transcribe, Dictate, and Settings verified per plan-v2 Phases 4–7. Onboarding, Word Replacement pending.*
 *Rubric, plan-v2, and architecture maintenance: see docs/starter.md and docs/reviewer.md.*

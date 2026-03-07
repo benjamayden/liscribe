@@ -41,7 +41,10 @@ C4Container
 Only one Liscribe process runs per user. A file lock under `~/.cache/liscribe` plus a Unix socket are used so a second launch does not start a duplicate; instead it signals the existing instance to activate (bring to front) and exits. See `app_instance` in the codebase.
 
 **Menu bar icon**  
-The menu bar item is controlled in `app.py`: the constant `MENU_BAR_TITLE` (default `"🎙"`) is passed to `rumps.App`. To change it, edit `MENU_BAR_TITLE` to another string (e.g. another emoji or short label). To use a custom image instead, set `app.icon = "/path/to/icon.png"` after creating the app (rumps uses the image as a template icon on macOS).
+The menu bar item is controlled in `app.py`. When available (macOS 11+), the app uses an NSImage built from the SF Symbol "mic" (dark rounded rect with white mic glyph) and sets it as the application icon; otherwise it falls back to `MENU_BAR_TITLE` (default `"🎙"`). To change the fallback, edit `MENU_BAR_TITLE`; to use a different image, see `_menubar_icon_image()` in `app.py`.
+
+**Process display name**  
+On launch, the app sets the process display name (e.g. "Liscribe") via the macOS ApplicationServices API so CMD+Tab and the Dock show the app name instead of "Python" when run as a script.
 
 ---
 
@@ -55,7 +58,7 @@ C4Component
         Component(scribe, "ScribePanel", "HTML + pywebview", "Record, waveform, notes. ScribeBridge, ScribeController.")
         Component(transcribe, "TranscribePanel", "HTML + pywebview", "File picker, model list. TranscribeBridge, TranscribeController.")
         Component(dictate, "DictatePanel", "HTML + pywebview", "Waveform, timer. DictateBridge, DictateController.")
-        Component(settings, "SettingsPanel", "HTML + pywebview", "Tabs: General, Models, Hotkeys, Deps, Help. SettingsBridge.")
+        Component(settings, "SettingsPanel", "HTML + pywebview", "Tabs: General, Models, Hotkeys, Replacements, Deps, Help. SettingsBridge.")
         Component(onboarding, "OnboardingPanel", "HTML + pywebview", "Wizard, practice steps. OnboardingBridge.")
     }
     Container_Ext(services, "Services", "Python", "AudioService, ModelService, ConfigService, HotkeyService")
@@ -104,8 +107,8 @@ The JS bridge (`pywebview.api`) may not be injectable immediately on `window.loa
 - DictateController — hotkey state machine + AudioService + paste
 
 **SettingsPanel**
-- HTML/CSS view (tabbed: General, Models, Hotkeys, Deps, Help)
-- SettingsBridge
+- HTML/CSS view (tabbed: General, Models, Hotkeys, Replacements, Deps, Help)
+- SettingsBridge — exposes `restart_app()` so the user can apply hotkey changes (app quits and relaunches via launchd when running as .app)
 - reads/writes ConfigService directly
 
 **OnboardingPanel**

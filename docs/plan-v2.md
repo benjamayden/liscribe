@@ -1,7 +1,7 @@
 # Liscribe v2 — Build Plan
 
 > **How to use this document**
-> Read the rubric first (`docs/rubric.md`). The rubric is the source of truth
+> Read the rubric first (`docs/v2-rubric.md`). The rubric is the source of truth
 > for what success looks like. This plan is the ordered sequence of work to get
 > there. Each phase has a single goal, explicit file changes, and a done
 > condition. Complete phases in order. Do not start a phase until the previous
@@ -22,8 +22,8 @@
 | 4 | Scribe workflow | ✅ Done — 246 tests passing |
 | 5 | Transcribe workflow | ✅ Done — prefill from Scribe, model list with download status, init delay/retry |
 | 6 | Dictate workflow | ✅ Done — hotkey state machine, floating panel, paste, Setup Required |
-| 7 | Settings | ⬜ Next |
-| 8 | Onboarding | ⬜ |
+| 7 | Settings | ✅ Done — 388 tests passing; all tabs, hotkey pickers, Save and quit to apply hotkeys |
+| 8 | Onboarding | ⬜ Next |
 | 9 | Bundle + install | ⬜ |
 | 10 | Word Replacement | ⬜ |
 | 11 | Refactor (panel layer + services) | ⬜ |
@@ -447,6 +447,7 @@ tests/test_dictate_controller.py
 - `pick_app()` — opens /Applications picker
 - `open_help(anchor)` — navigates Help tab to named section
 - `get_app_version()`
+- `restart_app()` — quits and relaunches so hotkey changes take effect (launchd one-shot when .app, subprocess when dev)
 
 **New tests:**
 ```
@@ -454,19 +455,21 @@ tests/test_settings_bridge.py
 ```
 
 **Done condition — all rubric Settings criteria met:**
-- [ ] All settings persist across restarts
-- [ ] Model download shows progress and confirms completion
-- [ ] Removing default model prompts replacement before deletion
-- [ ] Permission status live (not cached)
-- [ ] Each permission has one-tap path to correct System Settings pane
-- [ ] App picker opens /Applications; icon + name shown
-- [ ] Open Transcript uses `open -a AppName file`
-- [ ] Start on Login registers/deregisters immediately
-- [ ] Help tab renders all topics; detail pages open correctly
-- [ ] Help ↗ from any Setup Required modal navigates to correct page
-- [ ] Privacy policy readable inline
-- [ ] GitHub link opens in browser
-- [ ] Setup Required modal fires for any missing config, not just Dictate
+- [x] All settings persist across restarts
+- [x] Model download shows progress and confirms completion
+- [x] Removing default model prompts replacement before deletion
+- [x] Permission status live (not cached)
+- [x] Each permission has one-tap path to correct System Settings pane
+- [x] App picker opens /Applications; icon + name shown
+- [x] Open Transcript uses `open -a AppName file`
+- [x] Start on Login registers/deregisters immediately
+- [x] Help tab renders all topics; detail pages open correctly
+- [x] Help ↗ from any Setup Required modal navigates to correct page
+- [x] Privacy policy readable inline
+- [x] GitHub link opens in browser
+- [x] Setup Required modal fires for any missing config, not just Dictate
+
+Hotkey changes (Scribe shortcut, Dictate trigger key) are applied after the user clicks "Save and quit" in Settings → Hotkeys; the app restarts via a launchd one-shot when running as .app, or a subprocess when running from the command line.
 
 ---
 
