@@ -53,6 +53,7 @@ class SettingsBridge:
         on_restart: Callable[[], None] | None = None,
         on_launch_hotkey_changed: Callable[[], None] | None = None,  # Reserved for future in-process listener restart; not called (hotkeys apply after full app restart).
         on_dictation_hotkey_changed: Callable[[], None] | None = None,  # Same as above.
+        on_replay_setup_guide: Callable[[], None] | None = None,
     ) -> None:
         self._config = config
         self._model = model
@@ -61,6 +62,7 @@ class SettingsBridge:
         self._on_restart = on_restart
         self._on_launch_hotkey_changed = on_launch_hotkey_changed
         self._on_dictation_hotkey_changed = on_dictation_hotkey_changed
+        self._on_replay_setup_guide = on_replay_setup_guide
         self._window: Any = None
         self._download_state: dict[str, Any] = {}
         self._download_lock = threading.Lock()
@@ -74,6 +76,11 @@ class SettingsBridge:
         """Close the app and relaunch it after a short delay. Used to apply new hotkeys."""
         if self._on_restart is not None:
             self._on_restart()
+
+    def replay_setup_guide(self) -> None:
+        """Open the onboarding wizard from step 1 (Settings → Help → Replay setup guide)."""
+        if self._on_replay_setup_guide is not None:
+            self._on_replay_setup_guide()
 
     def set_window(self, window: Any) -> None:
         """Set the pywebview window for pick_app and navigate_help. Called by app after create_window."""

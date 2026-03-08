@@ -63,6 +63,7 @@ from PyObjCTools import AppHelper
 
 from liscribe import app_instance
 from liscribe.bridge.dictate_bridge import DictateBridge
+from liscribe.bridge.onboarding_bridge import OnboardingBridge
 from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
 from liscribe.bridge.settings_bridge import SettingsBridge
 from liscribe.bridge.transcribe_bridge import TranscribeBridge
@@ -71,6 +72,7 @@ from liscribe.controllers.dictate_controller import (
     ERROR_SETUP_REQUIRED,
     DictateController,
 )
+from liscribe.controllers.onboarding_controller import OnboardingController
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
 from liscribe.controllers.transcribe_controller import TranscribeController
 from liscribe.services.audio_service import AudioService
@@ -82,6 +84,9 @@ from liscribe.services.permissions_service import has_dictate_permissions
 logger = logging.getLogger(__name__)
 
 PANELS_DIR = Path(__file__).parent / "ui" / "panels"
+
+# Panels that, when open, show the app in the Dock. Dictate is excluded (menu bar only when only dictate is open).
+DOCK_PANELS = frozenset({"settings", "onboarding", "scribe", "transcribe"})
 
 
 def _set_scribe_confirm_close(window: webview.Window, value: bool) -> None:
@@ -235,22 +240,23 @@ _MENUBAR_ICON_WIDTH = 20.0
 _MENUBAR_ICON_HEIGHT = 20.0
 _MENUBAR_ICON_INSET = 0.0  # Padding around symbol; larger = smaller symbol, more margin.
 
+# Dock icon size (Dock scales down; 256 is enough for sharp display).
+_DOCK_ICON_SIZE = 256.0
 
-def _menubar_icon_image() -> object | None:
-    """Return an NSImage: white waveform symbol for the menu bar, or None if unavailable."""
+
+def _waveform_icon_image(size: float) -> object | None:
+    """Return an NSImage: white waveform.and.mic symbol at the given size, or None if unavailable."""
     try:
         symbol = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
             "waveform.and.mic", None
         )
         if symbol is None:
             return None
-        w, h = _MENUBAR_ICON_WIDTH, _MENUBAR_ICON_HEIGHT
-        inset = _MENUBAR_ICON_INSET
-        size = AppKit.NSMakeSize(w, h)
-        img = AppKit.NSImage.alloc().initWithSize_(size)
+        inset = size * 0.1
+        rect_size = size - 2 * inset
+        img = AppKit.NSImage.alloc().initWithSize_(AppKit.NSMakeSize(size, size))
         img.lockFocus()
-        # Draw symbol in white: fill white rect then use symbol as mask (DestinationIn).
-        symbol_rect = AppKit.NSMakeRect(inset, inset, w - 2 * inset, h - 2 * inset)
+        symbol_rect = AppKit.NSMakeRect(inset, inset, rect_size, rect_size)
         AppKit.NSColor.whiteColor().set()
         AppKit.NSRectFill(symbol_rect)
         symbol.drawInRect_fromRect_operation_fraction_(
@@ -262,8 +268,13 @@ def _menubar_icon_image() -> object | None:
         img.unlockFocus()
         return img
     except (AttributeError, Exception) as exc:
-        logger.debug("Could not create menubar icon image: %s", exc)
+        logger.debug("Could not create waveform icon image: %s", exc)
         return None
+
+
+def _menubar_icon_image() -> object | None:
+    """Return an NSImage: white waveform symbol for the menu bar, or None if unavailable."""
+    return _waveform_icon_image(_MENUBAR_ICON_WIDTH)
 
 
 class LiscribeApp(rumps.App):
@@ -344,6 +355,21 @@ class LiscribeApp(rumps.App):
             on_dictation_hotkey_changed=lambda: threading.Thread(
                 target=self._hotkey.restart_dictate_listener, daemon=True, name="restart-dictate-hotkey"
             ).start(),
+            on_replay_setup_guide=lambda: AppHelper.callAfter(self.open_onboarding),
+        )
+
+        # Onboarding (Phase 8)
+        self._onboarding_ctrl = OnboardingController(config=config, model=model)
+        sample_path = self._onboarding_ctrl.get_sample_audio_path()
+        self._onboarding_bridge = OnboardingBridge(
+            controller=self._onboarding_ctrl,
+            on_open_scribe=lambda: AppHelper.callAfter(self.open_scribe),
+            on_open_transcribe_with_sample=lambda: AppHelper.callAfter(
+                lambda: self._open_transcribe_with_prefill(str(sample_path))
+            ),
+            on_onboarding_complete=lambda: AppHelper.callAfter(self._close_onboarding_panel),
+            on_open_help=lambda anchor: AppHelper.callAfter(self.open_settings_to_help, anchor or "permissions"),
+            on_open_settings_general=lambda: AppHelper.callAfter(self._open_settings_from_onboarding),
         )
 
         # name → open webview.Window (None-entry means window was closed)
@@ -362,6 +388,30 @@ class LiscribeApp(rumps.App):
     # ------------------------------------------------------------------
     # Panel management
     # ------------------------------------------------------------------
+
+    def _update_dock_visibility(self) -> None:
+        """Show app in Dock when any of settings/onboarding/scribe/transcribe is open; hide when none."""
+        nsapp = AppKit.NSApplication.sharedApplication()
+        if any(p in self._panels for p in DOCK_PANELS):
+            nsapp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyRegular)
+            # Use same waveform icon as menu bar but at Dock size; set on app and dock tile so Dock updates.
+            dock_icon = getattr(self, "_dock_icon_nsimage", None)
+            if dock_icon is None:
+                dock_icon = _waveform_icon_image(_DOCK_ICON_SIZE)
+                if dock_icon is not None:
+                    self._dock_icon_nsimage = dock_icon
+            if dock_icon is not None:
+                try:
+                    nsapp.setApplicationIconImage_(dock_icon)
+                    dock_tile = nsapp.dockTile()
+                    if dock_tile is not None:
+                        dock_tile.setIcon_(dock_icon)
+                        dock_tile.display()
+                except Exception:
+                    pass
+            _set_process_display_name(APP_DISPLAY_NAME)
+        else:
+            nsapp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
 
     def _panel_url(self, name: str, fragment: str | None = None) -> str:
         """URL for the panel. Prefer HTTP so WKWebView loads reliably on macOS."""
@@ -433,6 +483,7 @@ class LiscribeApp(rumps.App):
             # Resign active and bring the app that was behind (e.g. Cursor) to the front so the user can click and type.
             if name == "scribe":
                 AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().hide_(None))
+            AppHelper.callAfter(self._update_dock_visibility)
 
         window.events.closed += _on_closed
         self._panels[name] = window
@@ -462,11 +513,17 @@ class LiscribeApp(rumps.App):
         # rumps already started the event loop.
         webview.guilib.create_window(window)
 
+        if name in DOCK_PANELS:
+            AppHelper.callAfter(self._update_dock_visibility)
+
         # Phase 5: Transcribe bridge needs window reference for file/folder dialogs.
         if name == "transcribe" and js_api is not None and hasattr(js_api, "set_window"):
             js_api.set_window(window)
         # Phase 7: Settings bridge needs window for pick_folder, pick_app, navigate_help.
         if name == "settings" and js_api is not None and hasattr(js_api, "set_window"):
+            js_api.set_window(window)
+        # Phase 8: Onboarding bridge needs window for pick_app (Choose application).
+        if name == "onboarding" and js_api is not None and hasattr(js_api, "set_window"):
             js_api.set_window(window)
 
     def _schedule_restart(self) -> None:
@@ -683,6 +740,48 @@ class LiscribeApp(rumps.App):
                 logger.warning("Could not destroy Settings panel: %s", exc)
             self._panels.pop("settings", None)
 
+    def _close_onboarding_panel(self) -> None:
+        """Close the onboarding panel (called from bridge when user completes step 8)."""
+        w = self._panels.get("onboarding")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not destroy Onboarding panel: %s", exc)
+            self._panels.pop("onboarding", None)
+
+    def _open_onboarding_panel(self) -> None:
+        """Open the onboarding panel (first-launch or replay from Settings)."""
+        existing = self._panels.get("onboarding")
+        if existing is not None:
+            try:
+                existing.show()
+                return
+            except Exception:
+                self._panels.pop("onboarding", None)
+        self._open_panel(
+            "onboarding",
+            "Welcome to Liscribe",
+            width=560,
+            height=580,
+            js_api=self._onboarding_bridge,
+        )
+
+    def _maybe_show_onboarding(self, _timer: Any = None) -> None:
+        """If onboarding not complete, open the onboarding panel. Called once after app start."""
+        if _timer is not None:
+            try:
+                _timer.stop()
+            except Exception:
+                pass
+        if not self._config.onboarding_complete:
+            self._open_onboarding_panel()
+
+    def open_onboarding(self) -> None:
+        """Open onboarding from Settings (Replay setup guide). Resets to step 1 and opens panel."""
+        self._onboarding_ctrl.reset_for_replay()
+        self._open_onboarding_panel()
+
     def _show_notification(self, title: str, message: str) -> None:
         try:
             import rumps
@@ -790,6 +889,18 @@ class LiscribeApp(rumps.App):
         if w is not None:
             _set_scribe_confirm_close(w, False)
 
+    def _open_settings_from_onboarding(self) -> None:
+        """Close onboarding (if open) and open Settings with the General tab selected."""
+        self._close_onboarding_panel()
+        self._open_panel(
+            "settings",
+            "Settings",
+            width=560,
+            height=580,
+            js_api=self._settings_bridge,
+            fragment="general",
+        )
+
     def open_settings(self, _: Any = None) -> None:
         """Open Settings panel. Wrapped so an exception here does not quit the app."""
         try:
@@ -867,10 +978,34 @@ def main() -> None:
     except Exception:
         logger.warning("Could not start dictate key listener at startup", exc_info=True)
 
-    # Menu bar only: hide from Dock so the app appears only in the top menu bar.
-    AppKit.NSApplication.sharedApplication().setActivationPolicy_(
-        AppKit.NSApplicationActivationPolicyAccessory
-    )
+    # Dock: suppress when onboarding already complete; show with correct icon/name when onboarding will run.
+    nsapp = AppKit.NSApplication.sharedApplication()
+    if config.onboarding_complete:
+        nsapp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+    else:
+        nsapp.setActivationPolicy_(AppKit.NSApplicationActivationPolicyRegular)
+        dock_icon = _waveform_icon_image(_DOCK_ICON_SIZE)
+        if dock_icon is not None:
+            try:
+                nsapp.setApplicationIconImage_(dock_icon)
+                dock_tile = nsapp.dockTile()
+                if dock_tile is not None:
+                    dock_tile.setIcon_(dock_icon)
+                    dock_tile.display()
+            except Exception:
+                pass
+        _set_process_display_name(APP_DISPLAY_NAME)
+
+    # First launch: show onboarding if not yet complete (one-shot after 0.5s).
+    def _on_first_show(sender: Any) -> None:
+        try:
+            sender.stop()
+        except Exception:
+            pass
+        app._maybe_show_onboarding()
+
+    _first_show_timer = rumps.Timer(_on_first_show, 0.5)
+    _first_show_timer.start()
 
     app.run()
 

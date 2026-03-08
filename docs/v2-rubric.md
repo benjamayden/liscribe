@@ -746,13 +746,14 @@ Add / Edit rule form (shown inline):
 8. Done — summary of setup, entry point to each workflow
 
 **Success criteria:**
-- [ ] Cannot be skipped on first launch
-- [ ] Each permission step confirms grant status before allowing advance
-- [ ] Model download is not skippable — at least one model must be present to proceed
-- [ ] Each practice step uses the real workflow, not a mock
-- [ ] User can navigate back to any previous step
-- [ ] Completion marks onboarding done; subsequent launches go straight to menu bar
-- [ ] "Replay setup guide" in Settings restarts the full flow
+- [x] Cannot be skipped on first launch
+- [x] Each permission step confirms grant status before allowing advance
+- [x] Model download is not skippable — at least one model must be present to proceed
+- [x] Each practice step uses the real workflow, not a mock
+- [x] User can navigate back to any previous step
+- [x] Completion marks onboarding done; subsequent launches go straight to menu bar
+- [x] "Replay setup guide" in Settings restarts the full flow
+- [ ] **Loading state:** Steps that wait on the backend (e.g. after Continue/Back) show an explicit loading state (e.g. spinner or “Loading…”) until the new step is ready; no blank or stale content during the wait.
 
 ---
 
@@ -777,5 +778,5 @@ Add / Edit rule form (shown inline):
 
 ---
 
-*Status: In progress — Scribe, Transcribe, Dictate, and Settings verified per plan-v2 Phases 4–7. Onboarding, Word Replacement pending.*
+*Status: In progress — Scribe, Transcribe, Dictate, Settings, and Onboarding verified per plan-v2 Phases 4–8. Word Replacement pending.*
 *Rubric, plan-v2, and architecture maintenance: see docs/starter.md and docs/reviewer.md.*

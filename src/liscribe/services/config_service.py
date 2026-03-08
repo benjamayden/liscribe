@@ -332,6 +332,19 @@ class ConfigService:
         self.set("scribe_models", list(models))
 
     # ------------------------------------------------------------------
+    # Onboarding (Phase 8 — first-launch wizard completion)
+    # ------------------------------------------------------------------
+
+    @property
+    def onboarding_complete(self) -> bool:
+        """Whether the first-launch onboarding wizard has been completed."""
+        return bool(self._values.get("onboarding_complete", False))
+
+    @onboarding_complete.setter
+    def onboarding_complete(self, value: bool) -> None:
+        self.set("onboarding_complete", value)
+
+    # ------------------------------------------------------------------
     # Start on Login (Phase 7 — persisted in ui_prefs.json, not config.py)
     # ------------------------------------------------------------------
 

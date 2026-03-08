@@ -7,18 +7,693 @@
   <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
-  <div class="panel-header">
-    <span class="panel-title">Welcome to Liscribe</span>
+
+  <div id="step-welcome" class="onboarding-step active">
+    <div class="panel-header">
+      <span class="panel-title">Welcome to Liscribe</span>
+    </div>
+    <div class="step-body">
+      <h2>Record, transcribe, and dictate</h2>
+      <p>Liscribe lets you record meetings (Scribe), transcribe existing audio files (Transcribe), and dictate text into any app (Dictate). All processing happens on your Mac — no data is sent to the cloud.</p>
+      <p>This short setup will guide you through permissions, downloading a speech model, and a quick practice of each workflow.</p>
+    </div>
+    <div class="step-nav">
+      <div class="left"></div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-welcome-next">Continue</button>
+      </div>
+    </div>
   </div>
 
-  <div class="panel-body">
-    <p class="label" style="text-align:center;padding:40px 0;">
-      Onboarding wizard — implemented in Phase 8
-    </p>
+  <div id="step-permissions" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Permissions</span>
+    </div>
+    <div class="step-body">
+      <h2>Required permissions</h2>
+      <p>Liscribe needs the following access to work. Grant each one in System Settings, then return here.</p>
+      <div id="perm-list"></div>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-permissions-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-permissions-next" disabled>Continue</button>
+      </div>
+    </div>
   </div>
 
-  <div class="panel-footer">
-    <button class="btn btn-primary btn-full" disabled>Continue →</button>
+  <div id="step-model_download" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Download a speech model</span>
+    </div>
+    <div class="step-body">
+      <h2>Choose at least one model</h2>
+      <p>Transcription uses a local Whisper model. Download at least one (base is a good balance of speed and accuracy).</p>
+      <div id="model-list" class="model-list"></div>
+      <div id="download-progress" class="download-progress"></div>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-model-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-model-next" disabled>Continue</button>
+      </div>
+    </div>
   </div>
+
+  <div id="step-blackhole" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Speaker capture (optional)</span>
+    </div>
+    <div class="step-body">
+      <h2>BlackHole</h2>
+      <p id="blackhole-desc">To capture both your microphone and system audio (e.g. the other person in a call) in Scribe, you need BlackHole — a virtual audio driver. You can skip this and add it later from Settings.</p>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-blackhole-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-ghost" id="btn-blackhole-guide">Setup Guide</button>
+        <button type="button" class="btn btn-primary" id="btn-blackhole-skip">Skip</button>
+        <button type="button" class="btn btn-primary" id="btn-blackhole-continue" style="display:none;">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-practice_dictate" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Practice: Dictate</span>
+    </div>
+    <div class="step-body">
+      <h2>Try dictation</h2>
+      <p>Type or dictate into the box, then click Send. Only the latest message is shown. Toggle Auto-enter ON to see it get its own line (separator below).</p>
+      <div class="dictate-hotkey-guide">
+        <div class="dictate-hotkey-row">
+          <span class="dictate-hotkey-icon" aria-hidden="true">⌃</span>
+          <span>hold</span>
+          <span>talk</span>
+          <span>release</span>
+          <span class="dictate-hotkey-icon dictate-hotkey-check" aria-hidden="true">✓</span>
+        </div>
+        <div class="dictate-hotkey-row">
+          <span class="dictate-hotkey-icon" aria-hidden="true">⌃</span>
+          <span>tap</span>
+          <span>tap</span>
+          <span>talk</span>
+          <span>release</span>
+          <span class="dictate-hotkey-icon dictate-hotkey-check" aria-hidden="true">✓</span>
+        </div>
+      </div>
+      <div id="dictate-chat-container" class="dictate-chat-container">
+        <div id="dictate-chat-messages" class="dictate-chat-messages">Messages will appear here.</div>
+        <div class="dictate-chat-input-row">
+          <input type="text" id="dictate-chat-input" class="dictate-chat-input" placeholder="Type or paste here…">
+          <button type="button" class="btn btn-primary dictate-chat-send-btn" id="dictate-chat-send">Send</button>
+        </div>
+      </div>
+      <div class="section-label mt-16">Auto-enter after paste</div>
+      <div class="form-row">
+        <label class="toggle">
+          <input type="checkbox" id="dictation-auto-enter-toggle">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span id="dictation-auto-enter-toggle-label">ON</span>
+        </label>
+      </div>
+      <p class="mt-12">When you have tried it, click Continue below.</p>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-dictate-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-dictate-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-practice_scribe" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Practice: Scribe</span>
+    </div>
+    <div class="step-body">
+      <h2>Try recording and transcribing</h2>
+      <p>Open Scribe, record a few seconds, then click Stop and Save. You will see the transcript being generated.</p>
+      <button type="button" class="btn btn-secondary practice-btn" id="btn-open-scribe">Open Scribe</button>
+      <div class="section-label mt-16">Open transcripts with</div>
+      <div class="form-row app-row">
+        <div id="scribe-open-transcript-app-display" class="app-display">Default app</div>
+        <button type="button" class="btn btn-secondary" id="btn-choose-app">Choose application</button>
+      </div>
+      <p>When you are done, click Continue below.</p>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-scribe-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-scribe-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-practice_transcribe" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">Practice: Transcribe</span>
+    </div>
+    <div class="step-body">
+      <h2>Try transcribing a file</h2>
+      <p>We will open the Transcribe panel with a sample audio file. Pick a model and click Transcribe to see the result.</p>
+      <button type="button" class="btn btn-secondary practice-btn" id="btn-open-transcribe">Open Transcribe with sample</button>
+      <p>When you are done, click Continue below.</p>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-transcribe-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-transcribe-next">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="step-done" class="onboarding-step">
+    <div class="panel-header">
+      <span class="panel-title">You are all set</span>
+    </div>
+    <div class="step-body">
+      <h2>Setup complete</h2>
+      <p>Use the menu bar icon to open <strong>Scribe</strong> (record and transcribe), <strong>Transcribe</strong> (transcribe files), or <strong>Settings</strong>. Dictate is always available via the Right Control key.</p>
+      <p>You can replay this guide anytime from Settings, Help, Replay setup guide.</p>
+      <button type="button" class="btn btn-secondary mt-16" id="btn-open-settings">Open Settings</button>
+    </div>
+    <div class="step-nav">
+      <div class="left">
+        <button type="button" class="btn btn-ghost" id="btn-done-back">Back</button>
+      </div>
+      <div class="right">
+        <button type="button" class="btn btn-primary" id="btn-done-finish">Finish</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const API_DELAY_MS = 80;
+  const RETRY_DELAY_MS = 200;
+  const RETRY_DELAY_MS_2 = 250;
+  const PERM_POLL_MS = 800;
+  const MODEL_POLL_MS = 500;
+
+  var navigating = false;
+  var welcomeButtonBound = false;
+
+  function el(id) { return document.getElementById(id); }
+
+  function clearChildren(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function showStep(stepId) {
+    document.querySelectorAll('.onboarding-step').forEach(function(s) { s.classList.remove('active'); });
+    var stepEl = document.getElementById('step-' + stepId);
+    if (stepEl) stepEl.classList.add('active');
+  }
+
+  function getStep() {
+    return pywebview.api.get_step().catch(function(e) {
+      console.error('get_step:', e);
+      return { step_index: 0, step_id: 'welcome' };
+    });
+  }
+
+  function refreshStep() {
+    return getStep().then(function(step) {
+      showStep(step.step_id);
+      return step;
+    });
+  }
+
+  function bindWelcome() {
+    if (welcomeButtonBound) return;
+    var btn = el('btn-welcome-next');
+    if (!btn) return;
+    welcomeButtonBound = true;
+    btn.addEventListener('click', function goNext() {
+      showStep('permissions');
+      btn.removeEventListener('click', goNext);
+      pywebview.api.advance().catch(function(e) { console.error('advance:', e); });
+      var pollMs = 50;
+      var deadline = Date.now() + 2000;
+      function poll() {
+        getStep().then(function(step) {
+          if (step.step_id === 'permissions') {
+            bindStepHandlers();
+            return;
+          }
+          if (Date.now() < deadline) setTimeout(poll, pollMs);
+          else bindStepHandlers();
+        });
+      }
+      setTimeout(poll, pollMs);
+    });
+  }
+
+  function renderPermRow(type, label, granted) {
+    var row = document.createElement('div');
+    row.className = 'perm-row';
+    var name = document.createElement('span');
+    name.textContent = label;
+    var right = document.createElement('span');
+    right.style.display = 'flex';
+    right.style.alignItems = 'center';
+    var status = document.createElement('span');
+    status.className = 'perm-status ' + (granted ? 'granted' : 'missing');
+    status.textContent = granted ? 'Granted' : 'Not granted';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-secondary';
+    btn.textContent = 'Open Settings';
+    btn.style.fontSize = '12px';
+    btn.addEventListener('click', function() { pywebview.api.request_permission(type); });
+    right.appendChild(status);
+    right.appendChild(btn);
+    row.appendChild(name);
+    row.appendChild(right);
+    return row;
+  }
+
+  function updatePermissionsStep(step) {
+    var perms = step.permissions || {};
+    var list = el('perm-list');
+    clearChildren(list);
+    var labels = { microphone: 'Microphone', accessibility: 'Accessibility', input_monitoring: 'Input Monitoring' };
+    ['microphone', 'accessibility', 'input_monitoring'].forEach(function(type) {
+      list.appendChild(renderPermRow(type, labels[type], !!perms[type]));
+    });
+    var allGranted = perms.microphone && perms.accessibility && perms.input_monitoring;
+    el('btn-permissions-next').disabled = !allGranted;
+  }
+
+  function pollPermissionsAndUpdate() {
+    getStep().then(function(step) {
+      if (step.step_id === 'permissions') {
+        updatePermissionsStep(step);
+        setTimeout(pollPermissionsAndUpdate, PERM_POLL_MS);
+      }
+    });
+  }
+
+  function bindPermissions() {
+    getStep().then(function(step) {
+      updatePermissionsStep(step);
+      setTimeout(pollPermissionsAndUpdate, PERM_POLL_MS);
+    });
+    el('btn-permissions-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(result) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-permissions-next').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(result) {
+        if (result && result.ok) {
+          refreshStep().then(bindStepHandlers);
+        }
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function renderModelRow(m) {
+    var row = document.createElement('div');
+    row.className = 'model-row';
+    var left = document.createElement('span');
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'model-name';
+    nameSpan.textContent = m.name;
+    var sizeSpan = document.createElement('span');
+    sizeSpan.className = 'model-size';
+    sizeSpan.textContent = ' ' + (m.size_label || '');
+    left.appendChild(nameSpan);
+    left.appendChild(sizeSpan);
+    var right = document.createElement('span');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = m.is_downloaded ? 'btn btn-ghost' : 'btn btn-secondary';
+    btn.style.fontSize = '12px';
+    btn.textContent = m.is_downloaded ? 'Downloaded' : 'Download';
+    btn.disabled = !!m.is_downloaded;
+    btn.dataset.name = m.name;
+    if (!m.is_downloaded) {
+      btn.addEventListener('click', function() {
+        pywebview.api.download_model(m.name);
+        pollModelProgress();
+      });
+    }
+    right.appendChild(btn);
+    row.appendChild(left);
+    row.appendChild(right);
+    return row;
+  }
+
+  function updateModelStep(step) {
+    var models = step.models || [];
+    var list = el('model-list');
+    clearChildren(list);
+    models.forEach(function(m) {
+      list.appendChild(renderModelRow(m));
+    });
+    var anyDownloaded = models.some(function(m) { return m.is_downloaded; });
+    el('btn-model-next').disabled = !anyDownloaded;
+  }
+
+  function pollModelProgress() {
+    pywebview.api.get_download_progress().then(function(p) {
+      var progEl = el('download-progress');
+      if (p.model) {
+        progEl.classList.add('visible');
+        progEl.textContent = p.done ? (p.error ? 'Error: ' + p.error : 'Download complete.') : 'Downloading ' + p.model + '…';
+      }
+      if (!p.done) {
+        setTimeout(pollModelProgress, MODEL_POLL_MS);
+      } else {
+        getStep().then(function(step) {
+          if (step.models) updateModelStep(step);
+        });
+      }
+    }).catch(function() {});
+  }
+
+  function bindModelDownload() {
+    getStep().then(updateModelStep);
+    el('btn-model-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(result) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-model-next').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(result) {
+        if (result && result.ok) {
+          refreshStep().then(bindStepHandlers);
+        }
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function bindBlackhole() {
+    pywebview.api.check_blackhole().then(function(bh) {
+      var installed = bh && bh.installed;
+      el('blackhole-desc').textContent = installed
+        ? 'BlackHole is already set up. You can use speaker capture in Scribe.'
+        : 'To capture both your microphone and system audio (e.g. the other person in a call) in Scribe, you need BlackHole — a virtual audio driver. You can skip this and add it later from Settings.';
+      el('btn-blackhole-guide').style.display = installed ? 'none' : 'inline-flex';
+      el('btn-blackhole-skip').style.display = installed ? 'none' : 'inline-flex';
+      el('btn-blackhole-continue').style.display = installed ? 'inline-flex' : 'none';
+    }).catch(function() {
+      el('btn-blackhole-guide').style.display = 'inline-flex';
+      el('btn-blackhole-skip').style.display = 'inline-flex';
+      el('btn-blackhole-continue').style.display = 'none';
+    });
+    el('btn-blackhole-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-blackhole-skip').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-blackhole-continue').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-blackhole-guide').addEventListener('click', function() {
+      pywebview.api.open_help('blackhole');
+    });
+  }
+
+  function bindPracticeDictate() {
+    setTimeout(function() {
+      var inp = el('dictate-chat-input');
+      if (inp) inp.focus();
+    }, 100);
+    pywebview.api.get_dictation_auto_enter().then(function(on) {
+      var cb = el('dictation-auto-enter-toggle');
+      var lbl = el('dictation-auto-enter-toggle-label');
+      if (cb && lbl) {
+        cb.checked = !!on;
+        lbl.textContent = on ? 'ON' : 'OFF';
+      }
+    }).catch(function() {});
+
+    function addChatBubble(text) {
+      var messagesEl = el('dictate-chat-messages');
+      if (!messagesEl) return;
+      var toggleEl = el('dictation-auto-enter-toggle');
+      var autoEnterOn = toggleEl && toggleEl.checked;
+      messagesEl.textContent = '';
+      var bubble = document.createElement('div');
+      bubble.className = 'dictate-chat-bubble' + (autoEnterOn ? ' dictate-chat-bubble--with-newline' : '');
+      bubble.appendChild(document.createTextNode(text));
+      if (autoEnterOn) {
+        var hint = document.createElement('div');
+        hint.className = 'dictate-chat-next-line';
+        hint.textContent = 'Next line (auto-enter)';
+        bubble.appendChild(hint);
+      }
+      messagesEl.appendChild(bubble);
+      if (autoEnterOn) {
+        var sep = document.createElement('div');
+        sep.className = 'dictate-chat-newline';
+        sep.setAttribute('aria-hidden', 'true');
+        messagesEl.appendChild(sep);
+      }
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function sendMessage() {
+      var input = el('dictate-chat-input');
+      if (!input) return;
+      var text = (input.value || '').trim();
+      if (!text) return;
+      addChatBubble(text);
+      input.value = '';
+    }
+
+    el('dictate-chat-send').addEventListener('click', sendMessage);
+    var dictateInputEl = el('dictate-chat-input');
+    if (dictateInputEl) {
+      dictateInputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+      dictateInputEl.addEventListener('paste', function() {
+        var toggleEl = el('dictation-auto-enter-toggle');
+        if (toggleEl && toggleEl.checked) {
+          setTimeout(function() { sendMessage(); }, 0);
+        }
+      });
+    }
+
+    el('dictation-auto-enter-toggle').addEventListener('change', function() {
+      var on = el('dictation-auto-enter-toggle').checked;
+      el('dictation-auto-enter-toggle-label').textContent = on ? 'ON' : 'OFF';
+      pywebview.api.set_dictation_auto_enter(on);
+    });
+    el('btn-dictate-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-dictate-next').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function bindPracticeScribe() {
+    function refreshAppDisplay() {
+      pywebview.api.get_open_transcript_app().then(function(name) {
+        var elm = el('scribe-open-transcript-app-display');
+        if (elm) elm.textContent = name ? name : 'Default app';
+      }).catch(function() {});
+    }
+    refreshAppDisplay();
+    el('btn-open-scribe').addEventListener('click', function() { pywebview.api.open_scribe(); });
+    el('btn-choose-app').addEventListener('click', function() {
+      pywebview.api.pick_app().then(function(result) {
+        if (result && result.name) refreshAppDisplay();
+      }).catch(function() {});
+    });
+    el('btn-scribe-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-scribe-next').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function bindPracticeTranscribe() {
+    el('btn-open-transcribe').addEventListener('click', function() { pywebview.api.open_transcribe_with_sample(); });
+    el('btn-transcribe-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-transcribe-next').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function bindDone() {
+    el('btn-open-settings').addEventListener('click', function() {
+      pywebview.api.open_settings_general();
+    });
+    el('btn-done-back').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.back().then(function(r) {
+        refreshStep().then(bindStepHandlers);
+      }).catch(function(e) {
+        console.error('back:', e);
+      }).finally(function() { navigating = false; });
+    });
+    el('btn-done-finish').addEventListener('click', function() {
+      if (navigating) return;
+      navigating = true;
+      pywebview.api.advance().then(function(r) {
+        // no refresh on finish; panel closes
+      }).catch(function(e) {
+        console.error('advance:', e);
+      }).finally(function() { navigating = false; });
+    });
+  }
+
+  function bindStepHandlers() {
+    getStep().then(function(step) {
+      var id = step.step_id;
+      if (id === 'welcome' && !welcomeButtonBound) bindWelcome();
+      else if (id === 'permissions') bindPermissions();
+      else if (id === 'model_download') bindModelDownload();
+      else if (id === 'blackhole') bindBlackhole();
+      else if (id === 'practice_dictate') bindPracticeDictate();
+      else if (id === 'practice_scribe') bindPracticeScribe();
+      else if (id === 'practice_transcribe') bindPracticeTranscribe();
+      else if (id === 'done') bindDone();
+    });
+  }
+
+  function init() {
+    // Wait for pywebview API; retry get_step() with backoff so the Welcome Continue button gets its handler reliably.
+    var delays = [API_DELAY_MS, API_DELAY_MS + RETRY_DELAY_MS, API_DELAY_MS + RETRY_DELAY_MS + RETRY_DELAY_MS_2];
+    var attempt = 0;
+
+    function tryBind() {
+      var delay = delays[attempt];
+      attempt += 1;
+      setTimeout(function() {
+        Promise.resolve()
+          .then(function() { return getStep(); })
+          .then(function(step) {
+            if (step && step.step_id) {
+              showStep(step.step_id);
+              bindStepHandlers();
+              return;
+            }
+            if (attempt < delays.length) tryBind();
+            else bindStepHandlers();
+          })
+          .catch(function() {
+            if (attempt < delays.length) tryBind();
+            else {
+              showStep('welcome');
+              bindStepHandlers();
+            }
+          });
+      }, attempt === 1 ? delay : delay - (delays[attempt - 2] || 0));
+    }
+
+    tryBind();
+
+    // Eager bind Welcome Continue so the first click works even if get_step() is still pending.
+    setTimeout(function() {
+      if (!welcomeButtonBound && el('step-welcome') && el('step-welcome').classList.contains('active')) {
+        bindWelcome();
+      }
+    }, API_DELAY_MS + 120);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
 </body>
 </html>

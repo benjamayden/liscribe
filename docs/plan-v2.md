@@ -23,8 +23,9 @@
 | 5 | Transcribe workflow | ✅ Done — prefill from Scribe, model list with download status, init delay/retry |
 | 6 | Dictate workflow | ✅ Done — hotkey state machine, floating panel, paste, Setup Required |
 | 7 | Settings | ✅ Done — 388 tests passing; all tabs, hotkey pickers, Save and quit to apply hotkeys |
-| 8 | Onboarding | ⬜ Next |
-| 9 | Bundle + install | ⬜ |
+| 8 | Onboarding | ✅ Done — 412 tests passing; first-launch wizard, replay from Settings |
+| 8b | Onboarding loading state | ⬜ Pending — do last |
+| 9 | Bundle + install | ⬜ Next |
 | 10 | Word Replacement | ⬜ |
 | 11 | Refactor (panel layer + services) | ⬜ |
 
@@ -513,13 +514,29 @@ tests/test_onboarding_controller.py
 ```
 
 **Done condition — all rubric Onboarding criteria met:**
-- [ ] Cannot be skipped on first launch
-- [ ] Each permission confirmed before advancing
-- [ ] Model download not skippable
-- [ ] Each practice step uses real workflow
-- [ ] User can go back to any step
-- [ ] Completion persists; subsequent launches go straight to menu bar
-- [ ] Replay from Settings restarts from step 1
+- [x] Cannot be skipped on first launch
+- [x] Each permission confirmed before advancing
+- [x] Model download not skippable
+- [x] Each practice step uses real workflow
+- [x] User can go back to any step
+- [x] Completion persists; subsequent launches go straight to menu bar
+- [x] Replay from Settings restarts from step 1
+
+---
+
+## Phase 8b — Onboarding loading state (do last)
+
+**Goal:** For steps that wait on the backend (e.g. after Continue/Back), show a loading state instead of a blank or stale view until the backend responds. Keeps UX clear and avoids the impression that the button did nothing.
+
+**Scope:**
+- Identify steps that call `advance()` or `back()` and then wait on `get_step()` (or similar) before binding handlers.
+- Add a loading state (spinner and/or “Loading…”) that is shown as soon as navigation is triggered and hidden when the new step’s content is ready.
+- Apply consistently so any step that depends on the backend shows loading until data is available.
+
+**Done when:**
+- [ ] Every onboarding step that waits for the backend shows an explicit loading state for the duration of that wait.
+- [ ] Loading state is removed once the new step is bound and rendered.
+- [ ] Rubric “Onboarding loading state” criterion is met.
 
 ---
 

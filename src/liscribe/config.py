@@ -147,6 +147,11 @@ def save_config(values: dict[str, Any]) -> None:
             "value": values.get(key, meta["value"]),
             "description": meta["description"],
         }
+    for key, value in values.items():
+        if key.startswith("_"):
+            continue
+        if key not in DEFAULTS:
+            data[key] = value
     CONFIG_PATH.write_text(
         json.dumps(data, indent=4, ensure_ascii=False) + "\n",
         encoding="utf-8",

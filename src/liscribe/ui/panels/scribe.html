@@ -5,54 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scribe</title>
   <link rel="stylesheet" href="../assets/style.css">
-  <style>
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-    }
-    .control-row {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .control-row .section-label { min-width: 108px; margin-bottom: 0; }
-    .control-row select { flex: 1; }
-    .model-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-    .path-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .path-display {
-      flex: 1;
-      color: var(--text-muted);
-      font-size: 12px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .fallback-warning { display: none; color: #ff9f0a; font-size: 11px; margin-top: 2px; }
-    .fallback-warning.visible { display: block; }
-    .model-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .model-progress-row .model-name { min-width: 60px; font-size: 12px; font-weight: 500; }
-    .model-progress-row .progress-track { flex: 1; height: 6px; }
-    .model-progress-row .progress-label {
-      min-width: 52px; font-size: 11px; color: var(--text-muted); text-align: right;
-    }
-    .file-path-line { font-size: 11px; color: var(--text-muted); word-break: break-all; margin-top: 2px; }
-    .open-transcript-btn { margin-top: 4px; font-size: 12px; }
-    .view { display: none; flex-direction: column; height: 100%; }
-    .view.active { display: flex; }
-  </style>
 </head>
 <body>
 
   <!-- RECORDING VIEW -->
   <div id="view-recording" class="view active">
     <div class="panel-header">
-      <div class="row" style="gap:8px">
+      <div class="row">
         <span class="rec-dot"></span>
         <span class="panel-title">Scribe</span>
       </div>
@@ -60,20 +19,20 @@
     </div>
 
     <div class="panel-body">
-      <div id="waveform-container" style="margin-bottom:12px">
+      <div id="waveform-container" class="mb-12">
         <div id="waveform-mic-wrap">
-          <div class="section-label" style="margin-bottom:4px;font-size:10px" id="waveform-mic-label">Mic</div>
+          <div class="waveform-channel-label" id="waveform-mic-label">Mic</div>
           <div class="waveform" id="waveform"></div>
         </div>
-        <div id="waveform-speaker-wrap" style="display:none;margin-top:6px">
-          <div class="section-label" style="margin-bottom:4px;font-size:10px">Speaker</div>
+        <div id="waveform-speaker-wrap">
+          <div class="waveform-channel-label">Speaker</div>
           <div class="waveform" id="waveform-speaker"></div>
         </div>
       </div>
 
-      <textarea id="notes-input" rows="3"
+      <textarea id="notes-input" rows="3" class="mb-12"
         placeholder="Add a note… (Enter to save)"
-        style="margin-bottom:12px" autofocus></textarea>
+        autofocus></textarea>
 
       <div class="control-row">
         <span class="section-label">Mic</span>
@@ -83,31 +42,30 @@
         ⚠ Preferred mic not found — using system default
       </div>
 
-      <div class="control-row" style="margin-bottom:4px">
+      <div class="control-row mb-4">
         <span class="section-label">Speaker capture</span>
         <label class="toggle">
           <input type="checkbox" id="speaker-toggle">
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
-          <span id="speaker-label" style="font-size:12px;color:var(--text-muted)">OFF</span>
+          <span id="speaker-label" class="label">OFF</span>
         </label>
       </div>
-      <div id="speaker-error" style="display:none;color:#ff453a;font-size:11px;margin-bottom:8px"></div>
+      <div id="speaker-error" class="speaker-error"></div>
 
-      <div style="margin-bottom:10px">
+      <div class="mb-10">
         <div class="section-label">Models</div>
-        <div id="model-checkboxes" class="model-row"></div>
+        <div id="model-checkboxes" class="model-checkbox-row"></div>
       </div>
 
       <div class="path-row">
-        <span class="path-display" id="save-path-display">~/transcripts</span>
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px"
-          id="change-path-btn">Change</button>
+        <span class="path-display--plain" id="save-path-display">~/transcripts</span>
+        <button class="btn btn-ghost btn-sm" id="change-path-btn">Change</button>
       </div>
     </div>
 
     <div class="panel-footer">
-      <button class="btn btn-ghost" style="flex:1" id="cancel-btn">Cancel</button>
-      <button class="btn btn-danger" style="flex:1" id="stop-btn">&#9632; Stop &amp; Save</button>
+      <button class="btn btn-ghost btn-flex" id="cancel-btn">Cancel</button>
+      <button class="btn btn-danger btn-flex" id="stop-btn">&#9632; Stop &amp; Save</button>
     </div>
   </div>
 
@@ -117,13 +75,10 @@
       <span class="panel-title">Scribe — Transcribing</span>
     </div>
     <div class="panel-body">
-      <div id="transcribe-saving-to"
-        style="margin-bottom:16px;color:var(--text-muted);font-size:12px">
-        Saving to ~/transcripts/
-      </div>
+      <div id="transcribe-saving-to">Saving to ~/transcripts/</div>
       <div id="model-progress-list"></div>
     </div>
-    <div id="transcribing-footer" class="panel-footer" style="display:none">
+    <div id="transcribing-footer" class="panel-footer" style="display:none;">
       <button type="button" class="btn btn-primary btn-full" id="transcribing-close-btn">Close</button>
     </div>
   </div>
@@ -133,12 +88,12 @@
     <div class="panel-header">
       <span class="panel-title">Scribe — Recording Saved</span>
     </div>
-    <div class="panel-body" style="justify-content:center">
-      <div style="margin-bottom:12px">
-        <div class="section-label" style="margin-bottom:4px">Audio saved to:</div>
+    <div class="panel-body panel-body--center">
+      <div class="mb-12">
+        <div class="section-label mb-4">Audio saved to:</div>
         <div class="file-path-line" id="no-model-wav-path"></div>
       </div>
-      <div style="color:var(--text-muted);font-size:12px;margin-bottom:16px">
+      <div class="no-model-info">
         No transcription model was available.<br>
         You can transcribe this file later.
       </div>

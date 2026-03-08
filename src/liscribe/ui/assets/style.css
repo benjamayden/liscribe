@@ -1,27 +1,94 @@
-/* Liscribe — shared base styles for all panels */
+/* ═══════════════════════════════════════════════════════════════
+   LISCRIBE — style.css
+   Single source of truth for all panel styles.
+   Find any section with ⌘F on the marker: § NAME
+
+   CONTENTS
+   ─────────────────────────────────────────────────────────────
+   § TOKENS          Design tokens (colours, radii, font, etc.)
+   § RESET           Box-sizing & margin/padding wipe
+   § BASE            html/body defaults
+   § TYPOGRAPHY      Heading sizes
+
+   ── Core UI primitives ───────────────────────────────────────
+   § CHROME          Panel header / body / footer shells
+   § BUTTONS         .btn variants (primary, danger, ghost, etc.)
+   § FORMS           select, input[text], textarea
+   § TOGGLE          iOS-style toggle switch
+   § CHECKBOX        Native checkbox accent colour
+   § WAVEFORM        Animated level bars
+   § REC-DOT         Pulsing red recording indicator
+   § TIMER           Elapsed time counter
+   § LAYOUT          .row, .row-between, .label, .divider
+   § PROGRESS        .progress-track / .progress-fill
+   § SCROLLBAR       Webkit scrollbar overrides
+
+   ── Shared components ────────────────────────────────────────
+   § SECTION-LABEL   Uppercase sub-heading (all panels)
+   § PATH-ROW        File/folder picker rows
+   § MODEL-PROGRESS  Per-model transcription progress rows
+   § MODEL-CHECKBOX  Checkbox-list of model choices
+   § PERM-ROW        Permission status rows
+   § VIEW            .view / .view.active show-hide pattern
+   § ERROR-MSG       Inline field error text
+   § HEADER-CLOSE    ✕ dismiss button in panel headers
+
+   ── Panel: Dictate ───────────────────────────────────────────
+   § DICTATE-BASE    Compact floating-bar layout
+   § DICTATE-PROC    Transcribing spinner view
+   § DICTATE-SETUP   Permissions setup view
+
+   ── Panel: Scribe ────────────────────────────────────────────
+   § SCRIBE          Recording panel specifics
+
+   ── Panel: Settings ──────────────────────────────────────────
+   § SETTINGS-LAYOUT Sidebar + content split
+   § SETTINGS-TABS   Tab navigation buttons
+   § SETTINGS-FORMS  Form rows, radio groups, app picker
+   § SETTINGS-HELP   Help section & detail drilldown
+   § SETTINGS-MODELS Model management table
+   § SETTINGS-HOTKEYS Hotkey row & picker
+   § SETTINGS-REPLACEMENTS Word replacements table
+
+   ── Panel: Onboarding ────────────────────────────────────────
+   § ONBOARDING      Step layout, nav footer, model download list
+
+   ── Utilities (last — override component defaults) ───────────
+   § UTILITIES       Spacing (mt-N, mb-N) and display helpers
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § TOKENS ──────────────────────────────────────────────── */
 
 :root {
-  --bg:           #1c1c1e;
-  --bg-elevated:  #2c2c2e;
-  --bg-input:     #3a3a3c;
-  --border:       #3a3a3c;
-  --text:         #f2f2f7;
-  --text-muted:   #8e8e93;
-  --accent:       #ff453a;       /* recording red */
-  --accent-blue:  #0a84ff;
-  --accent-green: #30d158;
-  --radius-sm:    6px;
-  --radius-md:    10px;
-  --radius-lg:    14px;
-  --font:         -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-  --transition:   0.18s ease;
+  --bg:            #1c1c1e;
+  --bg-elevated:   #2c2c2e;
+  --bg-input:      #3a3a3c;
+  --border:        #3a3a3c;
+  --text:          #f2f2f7;
+  --text-muted:    #8e8e93;
+  --accent:        #ff453a;       /* recording red / danger */
+  --accent-blue:   #0a84ff;
+  --accent-green:  #30d158;
+  --accent-orange: #ff9f0a;       /* warnings */
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --font:          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --transition:    0.18s ease;
 }
+
+
+/* ── § RESET ───────────────────────────────────────────────── */
 
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
+
+
+/* ── § BASE ────────────────────────────────────────────────── */
 
 html, body {
   width: 100%;
@@ -40,12 +107,16 @@ body {
   overflow: hidden;
 }
 
-/* ── Typography ── */
+
+/* ── § TYPOGRAPHY ──────────────────────────────────────────── */
+
 h1 { font-size: 17px; font-weight: 600; }
 h2 { font-size: 15px; font-weight: 600; }
 h3 { font-size: 13px; font-weight: 600; }
 
-/* ── Panel chrome ── */
+
+/* ── § CHROME ──────────────────────────────────────────────── */
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -67,6 +138,13 @@ h3 { font-size: 13px; font-weight: 600; }
   padding: 16px;
 }
 
+/* Centred variant — for "no model" and similar empty states */
+.panel-body--center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .panel-footer {
   display: flex;
   gap: 8px;
@@ -75,21 +153,17 @@ h3 { font-size: 13px; font-weight: 600; }
   flex-shrink: 0;
 }
 
-/* ── Utilities (settings + panels) ── */
-.mt-12 { margin-top: 12px; }
-.mt-16 { margin-top: 16px; }
-.mt-20 { margin-top: 20px; }
-.mt-24 { margin-top: 24px; }
-.mb-12 { margin-bottom: 12px; }
-.text-muted { color: var(--text-muted); font-size: 13px; }
 
-/* ── Buttons ── */
+/* ── § BUTTONS ─────────────────────────────────────────────── */
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 2rem;
+  min-width: 96px;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 0.25rem 0.5rem;
   border: none;
   border-radius: var(--radius-sm);
   font-family: var(--font);
@@ -105,31 +179,33 @@ h3 { font-size: 13px; font-weight: 600; }
   cursor: default;
 }
 
-.btn-primary {
-  background: var(--accent-blue);
-  color: #fff;
-}
-
+/* Primary — blue call-to-action */
+.btn-primary { background: var(--accent-blue); color: #fff; }
 .btn-primary:hover:not(:disabled) { opacity: 0.85; }
 
-.btn-danger {
-  background: var(--accent);
-  color: #fff;
-}
-
+/* Danger — destructive / recording stop */
+.btn-danger { background: var(--accent); color: #fff; }
 .btn-danger:hover:not(:disabled) { opacity: 0.85; }
 
-.btn-ghost {
+/* Ghost / Secondary — neutral, subtle */
+.btn-ghost     { background: var(--bg-elevated); color: var(--text); }
+.btn-secondary { 
   background: var(--bg-elevated);
   color: var(--text);
 }
+.btn-ghost:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) { background: var(--bg-input); }
 
-.btn-ghost:hover:not(:disabled) { background: var(--bg-input); }
-
+/* Modifiers */
 .btn-full { width: 100%; }
+.btn-flex { flex: 1; }                      /* fill available width in flex containers */
+.btn-sm   { font-size: 12px; padding: 4px 10px; }  /* compact variant */
 
-/* ── Form controls ── */
-select, input[type="text"] {
+
+/* ── § FORMS ───────────────────────────────────────────────── */
+
+select,
+input[type="text"] {
   background: var(--bg-input);
   color: var(--text);
   border: 1px solid var(--border);
@@ -141,9 +217,8 @@ select, input[type="text"] {
   transition: border-color var(--transition);
 }
 
-select:focus, input[type="text"]:focus {
-  border-color: var(--accent-blue);
-}
+select:focus,
+input[type="text"]:focus { border-color: var(--accent-blue); }
 
 textarea {
   background: var(--bg-input);
@@ -159,11 +234,124 @@ textarea {
   transition: border-color var(--transition);
 }
 
-textarea:focus {
+textarea:focus { border-color: var(--accent-blue); }
+
+
+/* ── § Practice Dictate chat (onboarding) ──────────────────── */
+
+.dictate-hotkey-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dictate-hotkey-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dictate-hotkey-row span:not(.dictate-hotkey-icon) {
+  opacity: 0.9;
+}
+
+.dictate-hotkey-icon {
+  font-weight: 600;
+}
+
+.dictate-hotkey-check {
+  color: var(--accent-green);
+}
+
+.dictate-chat-container {
+  max-height: 160px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  padding: 0;
+}
+
+.dictate-chat-messages {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 72px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.dictate-chat-bubble {
+  display: block;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--border);
+  max-width: 100%;
+}
+
+.dictate-chat-bubble--with-newline {
+  margin-bottom: 4px;
+}
+
+.dictate-chat-newline {
+  height: 2px;
+  margin: 8px 0 6px 0;
+  background: var(--accent-green);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.dictate-chat-next-line {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.6;
+  margin-top: 6px;
+}
+
+.dictate-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dictate-chat-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--text);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.dictate-chat-input:focus {
   border-color: var(--accent-blue);
 }
 
-/* ── Toggle switch ── */
+.dictate-chat-input-row .btn {
+  flex-shrink: 0;
+}
+
+.dictate-chat-send-btn {
+  min-width: 72px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+
+/* ── § TOGGLE ──────────────────────────────────────────────── */
+
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -207,7 +395,9 @@ textarea:focus {
   transform: translateX(16px);
 }
 
-/* ── Checkbox ── */
+
+/* ── § CHECKBOX ────────────────────────────────────────────── */
+
 input[type="checkbox"] {
   accent-color: var(--accent-blue);
   width: 14px;
@@ -215,7 +405,9 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-/* ── Waveform ── */
+
+/* ── § WAVEFORM ────────────────────────────────────────────── */
+
 .waveform {
   height: 48px;
   display: flex;
@@ -233,7 +425,9 @@ input[type="checkbox"] {
   transition: height 0.08s ease;
 }
 
-/* ── Recording dot ── */
+
+/* ── § REC-DOT ─────────────────────────────────────────────── */
+
 .rec-dot {
   width: 8px;
   height: 8px;
@@ -248,14 +442,18 @@ input[type="checkbox"] {
   50%       { opacity: 0.4; }
 }
 
-/* ── Timer ── */
+
+/* ── § TIMER ───────────────────────────────────────────────── */
+
 .timer {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
 
-/* ── Row layout helpers ── */
+
+/* ── § LAYOUT ──────────────────────────────────────────────── */
+
 .row {
   display: flex;
   align-items: center;
@@ -274,14 +472,15 @@ input[type="checkbox"] {
   font-size: 12px;
 }
 
-/* ── Section divider ── */
 .divider {
   height: 1px;
   background: var(--border);
   margin: 12px 0;
 }
 
-/* ── Progress bar ── */
+
+/* ── § PROGRESS ────────────────────────────────────────────── */
+
 .progress-track {
   height: 4px;
   background: var(--bg-input);
@@ -296,8 +495,583 @@ input[type="checkbox"] {
   transition: width 0.3s ease;
 }
 
-/* ── Scrollbar ── */
+
+/* ── § SCROLLBAR ───────────────────────────────────────────── */
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SHARED COMPONENTS
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § SECTION-LABEL ───────────────────────────────────────── */
+/* Uppercase field label used across Transcribe, Scribe, Settings */
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* No bottom margin — used inside control rows */
+.section-label--inline { margin-bottom: 0; }
+
+/* Smaller variant — channel labels on waveform */
+.section-label--xs { font-size: 10px; margin-bottom: 4px; }
+
+
+/* ── § PATH-ROW ────────────────────────────────────────────── */
+/* File/folder picker: [path display]  [Browse btn]            */
+
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Styled input-like box showing the current path */
+.path-display {
+  flex: 1;
+  background: var(--bg-input);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Plain text variant — no background box (used in Scribe footer row) */
+.path-display--plain {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* ── § MODEL-PROGRESS ──────────────────────────────────────── */
+/* Per-model transcription progress rows (Transcribe & Scribe) */
+
+.model-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.model-progress-row .model-name {
+  min-width: 60px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.model-progress-row .progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.model-progress-row .progress-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  transition: width 0.2s;
+}
+
+.model-progress-row .progress-label {
+  min-width: 52px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Path shown below a completed progress row */
+.file-path-line {
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+
+/* "Open Transcript" button rendered below each completed row */
+.open-transcript-btn {
+  font-size: 12px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+
+/* ── § MODEL-CHECKBOX ──────────────────────────────────────── */
+/* Flex container holding model checkbox labels (Transcribe/Scribe) */
+
+.model-checkbox-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+
+/* ── § PERM-ROW ────────────────────────────────────────────── */
+/* Permission status row (Onboarding + Settings › Dependencies) */
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.perm-row:last-child { border-bottom: none; }
+
+
+/* ── § VIEW ────────────────────────────────────────────────── */
+/* Multi-view panels: only the .active view is shown           */
+
+.view {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+}
+
+.view.active { display: flex; }
+
+
+/* ── § ERROR-MSG ───────────────────────────────────────────── */
+
+.error-msg {
+  color: var(--accent);
+  font-size: 12px;
+  margin-top: 4px;
+  display: none;
+}
+
+.error-msg.visible { display: block; }
+
+
+/* ── § HEADER-CLOSE ────────────────────────────────────────── */
+/* ✕ dismiss button shown conditionally in panel headers       */
+
+.header-close {
+  visibility: hidden;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.header-close.visible { visibility: visible; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL: DICTATE
+   (body.panel-dictate scopes all overrides to dictate.html)
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § DICTATE-BASE ────────────────────────────────────────── */
+/* Compact floating bar — rec dot + waveform + timer           */
+
+body.panel-dictate {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 14px;
+  overflow: hidden;
+}
+
+#view-recording .waveform {
+  flex: 1;
+  height: 36px;
+  padding: 0;
+  gap: 2px;
+}
+
+#view-recording .timer {
+  font-size: 12px;
+  min-width: 36px;
+  text-align: right;
+}
+
+
+/* ── § DICTATE-PROC ────────────────────────────────────────── */
+/* Spinner shown while transcribing / pasting                  */
+
+#view-processing {
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 14px;
+}
+
+#view-processing .spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: dictate-spin 0.7s linear infinite;
+}
+
+@keyframes dictate-spin {
+  to { transform: rotate(360deg); }
+}
+
+#view-processing .label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+
+/* ── § DICTATE-SETUP ───────────────────────────────────────── */
+/* Permissions setup view (accessibility / input monitoring missing) */
+
+#view-setup {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  width: 100%;
+}
+
+#view-setup h2 { font-size: 14px; font-weight: 600; }
+
+#view-setup p {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+#view-setup ol {
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.setup-actions { display: flex; gap: 8px; margin-top: 4px; }
+.setup-actions .btn { flex: 1; font-size: 12px; padding: 6px 10px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL: SCRIBE
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § SCRIBE ──────────────────────────────────────────────── */
+
+/* Waveform channel labels (Mic / Speaker) */
+.waveform-channel-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+/* Speaker waveform — hidden until speaker capture enabled */
+#waveform-speaker-wrap {
+  display: none;
+  margin-top: 6px;
+}
+
+/* Mic fallback warning */
+.fallback-warning {
+  display: none;
+  color: var(--accent-orange);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.fallback-warning.visible { display: block; }
+
+/* Control row — label left, control right */
+.control-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.control-row .section-label { min-width: 108px; margin-bottom: 0; }
+.control-row select { flex: 1; }
+
+/* Speaker toggle error message */
+.speaker-error {
+  display: none;
+  color: var(--accent);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+/* "Saving to …" path in transcribing view */
+#transcribe-saving-to {
+  margin-bottom: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* No-model view body text */
+.no-model-info {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL: SETTINGS
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § SETTINGS-LAYOUT ─────────────────────────────────────── */
+
+.settings-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 160px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+
+/* ── § SETTINGS-TABS ───────────────────────────────────────── */
+
+.settings-tab {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-tab:hover  { color: var(--text); background: var(--bg-input); }
+.settings-tab.active { color: var(--text); font-weight: 600; background: var(--bg); }
+
+.settings-tab-pane        { display: none; }
+.settings-tab-pane.active { display: block; }
+
+
+/* ── § SETTINGS-FORMS ──────────────────────────────────────── */
+
+.form-row { margin-bottom: 16px; }
+.form-row label { display: block; margin-bottom: 4px; font-size: 13px; }
+
+.radio-group { display: flex; gap: 16px; align-items: center; }
+.radio-group label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; }
+
+/* "Open transcripts with" app row */
+.app-row    { display: flex; align-items: center; gap: 8px; }
+.app-display {
+  flex: 1;
+  background: var(--bg-input);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+/* Scribe default model checkboxes */
+.scribe-defaults-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+
+/* ── § SETTINGS-HELP ───────────────────────────────────────── */
+
+.help-topic-list { list-style: none; }
+.help-topic-list li { margin-bottom: 4px; }
+.help-topic-list a { color: var(--accent-blue); text-decoration: none; font-size: 13px; }
+.help-topic-list a:hover { text-decoration: underline; }
+
+.help-section { margin-bottom: 20px; }
+.help-section h4 {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.help-detail { display: none; }
+.help-detail.active { display: block; }
+.help-detail .back { display: inline-block; margin-bottom: 12px; color: var(--accent-blue); cursor: pointer; font-size: 13px; }
+.help-detail h2 { font-size: 15px; margin-bottom: 12px; }
+.help-detail p,
+.help-detail ul { margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+
+
+/* ── § SETTINGS-MODELS ─────────────────────────────────────── */
+
+.model-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.model-table th,
+.model-table td { padding: 8px 12px; text-align: left; font-size: 13px; }
+.model-table th { color: var(--text-muted); font-weight: 600; }
+.model-table tr { border-bottom: 1px solid var(--border); }
+
+
+/* ── § SETTINGS-HOTKEYS ────────────────────────────────────── */
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hotkey-display {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  background: var(--bg-input);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.hotkey-picker {
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  min-width: 140px;
+}
+
+#hotkey-save-quit-section { margin-top: 16px; }
+
+#hotkey-save-quit-section p { font-size: 12px; margin-bottom: 8px; }
+
+
+/* ── § SETTINGS-REPLACEMENTS ───────────────────────────────── */
+
+.replacements-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
+.replacements-table th,
+.replacements-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL: ONBOARDING
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ── § ONBOARDING ──────────────────────────────────────────── */
+
+.onboarding-step        { display: none; flex-direction: column; height: 100%; }
+.onboarding-step.active { display: flex; }
+
+.step-body { flex: 1; overflow-y: auto; padding: 20px 16px; }
+.step-body h2 { font-size: 15px; margin-bottom: 12px; }
+.step-body p  { margin-bottom: 12px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+
+.step-nav {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.step-nav .left  { display: flex; gap: 8px; }
+.step-nav .right { display: flex; gap: 8px; }
+
+/* Practice step button (Open Scribe / Open Transcribe) */
+.practice-btn { margin-bottom: 12px; }
+
+/* Model download list */
+.model-list { margin-bottom: 16px; }
+
+.model-list .model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.model-list .model-name { font-size: 13px; }
+.model-list .model-size { font-size: 11px; color: var(--text-muted); margin-left: 8px; }
+
+/* Progress text beneath the list */
+.download-progress        { font-size: 12px; color: var(--text-muted); margin-top: 8px; display: none; }
+.download-progress.visible { display: block; }
+
+/* Granted / missing badges next to each permission */
+.perm-status         { font-size: 12px; margin: 0 0.5rem; }
+.perm-status.granted { color: var(--accent-green); }
+.perm-status.missing { color: var(--text-muted); }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   § UTILITIES  (last in file so they override component defaults)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Margin-top */
+.mt-4  { margin-top:  4px; }
+.mt-6  { margin-top:  6px; }
+.mt-8  { margin-top:  8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+
+/* Margin-bottom */
+.mb-4  { margin-bottom:  4px; }
+.mb-6  { margin-bottom:  6px; }
+.mb-8  { margin-bottom:  8px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+
+/* Text */
+.text-muted { color: var(--text-muted); font-size: 13px; }
+.text-sm    { font-size: 12px; }
+.text-xs    { font-size: 11px; }

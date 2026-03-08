@@ -5,108 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dictate</title>
   <link rel="stylesheet" href="../assets/style.css">
-  <style>
-    /* Compact floating panel — waveform + timer only */
-    body {
-      flex-direction: row;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 0 14px;
-      overflow: hidden;
-    }
-
-    #view-recording {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-    }
-
-    #view-recording .waveform {
-      flex: 1;
-      height: 36px;
-      padding: 0;
-      gap: 2px;
-    }
-
-    #view-recording .timer {
-      font-size: 12px;
-      min-width: 36px;
-      text-align: right;
-    }
-
-    /* ── Processing view (transcribing/pasting) ── */
-    #view-processing {
-      display: none;
-      flex-direction: row;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 0 14px;
-    }
-
-    #view-processing .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border-color, #ccc);
-      border-top-color: var(--accent, #333);
-      border-radius: 50%;
-      animation: dictate-spin 0.7s linear infinite;
-    }
-
-    @keyframes dictate-spin {
-      to { transform: rotate(360deg); }
-    }
-
-    #view-processing .label {
-      font-size: 12px;
-      color: var(--text-muted, #666);
-    }
-
-    /* ── Setup Required view ── */
-    #view-setup {
-      display: none;
-      flex-direction: column;
-      gap: 14px;
-      padding: 20px 20px 16px;
-      width: 100%;
-    }
-
-    #view-setup h2 {
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    #view-setup p {
-      color: var(--text-muted);
-      font-size: 12px;
-      line-height: 1.55;
-    }
-
-    #view-setup ol {
-      padding-left: 18px;
-      color: var(--text-muted);
-      font-size: 12px;
-      line-height: 1.7;
-    }
-
-    .setup-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    .setup-actions .btn {
-      flex: 1;
-      font-size: 12px;
-      padding: 6px 10px;
-    }
-  </style>
 </head>
-<body>
+<body class="panel-dictate">
 
   <!-- ── Normal recording view ── -->
   <div id="view-recording">
@@ -125,7 +25,7 @@
   <div id="view-setup">
     <div>
       <h2 id="setup-title">Accessibility Required</h2>
-      <p id="setup-body" style="margin-top:6px">
+      <p id="setup-body" class="mt-6">
         Dictate needs Accessibility permission to paste text into other apps.
       </p>
     </div>
