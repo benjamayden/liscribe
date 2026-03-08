@@ -93,7 +93,12 @@ The script will:
 - Set up a LaunchAgent so Liscribe starts at login
 - Add a `liscribe` alias to your shell config
 
-The install script does not require sudo for most steps. Homebrew and LaunchAgent setup are the exceptions.
+Most steps do not need sudo. The **Homebrew** installer may ask for your password (it needs admin to install to `/opt/homebrew` or `/usr/local`). The **LaunchAgent** step only writes to your home folder and does not use sudo.
+
+**If you hit permission or sudo issues:** you can do the step that failed on its own, then re-run the installer (it skips steps that are already done).
+
+- **Homebrew:** If the script stops at Homebrew or you prefer not to run it from the script, install Homebrew yourself: open [brew.sh](https://brew.sh) and run the one-line install command there. When that finishes, open a **new** terminal window, `cd` back into the liscribe folder, and run `./install.sh` again.
+- **Anything else:** Fix the step that failed (e.g. get admin help if Homebrew needs it), then run `./install.sh` again from the liscribe folder.
 
 ---
 
