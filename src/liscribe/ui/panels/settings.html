@@ -130,6 +130,14 @@
           <span>BlackHole 2ch</span>
           <span id="blackhole-status">Checking…</span>
         </div>
+        <div id="speaker-device-row" class="perm-row mt-8">
+          <span>Speaker output device (multi-output)</span>
+          <span id="speaker-device-status">Checking…</span>
+        </div>
+        <div class="form-row mt-4">
+          <label class="text-sm">Device name (must match Audio MIDI Setup)</label>
+          <input type="text" id="speaker-device-input" class="input-text" placeholder="Multi-Output Device" />
+        </div>
         <p class="text-muted text-sm mt-4">Required for speaker capture in Scribe.</p>
         <button type="button" class="btn btn-secondary mt-8" id="blackhole-guide" style="display:none;">Setup Guide</button>
       </div>
@@ -381,6 +389,13 @@
       el('blackhole-status').textContent = bh.installed ? '✓ Installed' : '✗ Not installed';
       el('blackhole-guide').style.display = bh.installed ? 'none' : 'inline-flex';
     } catch (e) { el('blackhole-status').textContent = '—'; }
+    const speakerName = (config.speaker_device || 'Multi-Output Device').trim() || 'Multi-Output Device';
+    const speakerInput = el('speaker-device-input');
+    if (speakerInput) speakerInput.value = speakerName;
+    try {
+      const mod = await pywebview.api.check_multi_output_device(speakerName) || {};
+      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
+    } catch (e) { el('speaker-device-status').textContent = '—'; }
   }
 
   /* Help navigation: two entry points — (1) URL hash on load (#help/anchor), (2) open_help(anchor) from Python via __liscribeNavigateHelp. Both switch to Help tab and show the section. */
@@ -427,7 +442,7 @@
     dictate: { title: 'How to use Dictate', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Double-tap Right Control to toggle recording, or hold it to record while held. Position the cursor where you want text; the floating panel appears and text is pasted when you stop.'; d.appendChild(p); return d; } },
     transcribe: { title: 'How to use Transcribe', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Open Transcribe from the menu bar. Choose an audio file (.wav, .mp3, .m4a), output folder, and models. Click Transcribe and wait for completion.'; d.appendChild(p); return d; } },
     permissions: { title: 'Permissions explained', body: function() { const d = document.createDocumentFragment(); ['Microphone: Required for recording.', 'Accessibility: Required for Dictate so Liscribe can paste text into other apps.', 'Input Monitoring: Required for the Dictate hotkey (Right Control) to be detected globally.'].forEach(function(t) { const p = document.createElement('p'); p.textContent = t; d.appendChild(p); }); return d; } },
-    blackhole: { title: 'BlackHole Setup', body: function() { const d = document.createDocumentFragment(); const p1 = document.createElement('p'); p1.textContent = 'BlackHole is a virtual audio driver that lets Liscribe capture system audio alongside your microphone.'; d.appendChild(p1); const p2 = document.createElement('p'); p2.textContent = 'Install: Run brew install blackhole-2ch in Terminal, then restart your Mac.'; d.appendChild(p2); const p3 = document.createElement('p'); p3.textContent = 'Configure: In Audio MIDI Setup, create a Multi-Output Device that includes your speakers and BlackHole 2ch.'; d.appendChild(p3); return d; } },
+    blackhole: { title: 'BlackHole Setup', body: function() { const d = document.createDocumentFragment(); const p1 = document.createElement('p'); p1.textContent = 'BlackHole is a virtual audio driver that lets Liscribe capture system audio alongside your microphone.'; d.appendChild(p1); const p2 = document.createElement('p'); p2.textContent = 'Install: Run brew install blackhole-2ch in Terminal, then restart your Mac.'; d.appendChild(p2); const p3 = document.createElement('p'); p3.textContent = 'Configure: In Audio MIDI Setup, create a multi-output device that includes your speakers and BlackHole 2ch. If you use a custom name, set it in Settings → Dependencies.'; d.appendChild(p3); return d; } },
     models: { title: 'Downloading models', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Whisper models are stored locally. Download at least one in Settings → Models. Smaller models (tiny, base) are faster; larger ones are more accurate.'; d.appendChild(p); return d; } },
     hotkeys: { title: 'Hotkey customisation', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'Change the Scribe shortcut and Dictate trigger key in Settings → Hotkeys. Dictate supports double-tap and hold; both modes stay active.'; d.appendChild(p); return d; } },
     data: { title: 'What data Liscribe stores', body: function() { const d = document.createDocumentFragment(); const p = document.createElement('p'); p.textContent = 'All data stays on your Mac: config in ~/.config/liscribe, cache and models in ~/.cache/liscribe. No data is sent to the internet after model download.'; d.appendChild(p); return d; } },
@@ -465,6 +480,25 @@
     const v = el('start-on-login').checked;
     saveConfigKey('start_on_login', v);
     el('start-on-login-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('speaker-device-input').addEventListener('change', async function() {
+    const name = (this.value || '').trim() || 'Multi-Output Device';
+    await saveConfigKey('speaker_device', name);
+    config.speaker_device = name;
+    try {
+      const mod = await pywebview.api.check_multi_output_device(name) || {};
+      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
+    } catch (e) { el('speaker-device-status').textContent = '—'; }
+  });
+  el('speaker-device-input').addEventListener('blur', async function() {
+    const name = (this.value || '').trim() || 'Multi-Output Device';
+    if (name === (config.speaker_device || 'Multi-Output Device')) return;
+    await saveConfigKey('speaker_device', name);
+    config.speaker_device = name;
+    try {
+      const mod = await pywebview.api.check_multi_output_device(name) || {};
+      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
+    } catch (e) { el('speaker-device-status').textContent = '—'; }
   });
   el('change-app').addEventListener('click', async function() {
     const result = await pywebview.api.pick_app();

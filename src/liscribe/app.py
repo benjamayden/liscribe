@@ -378,6 +378,9 @@ class LiscribeApp(rumps.App):
         # Panel HTML is served over HTTP so WKWebView loads reliably on macOS (file:// can show blank).
         self._panel_http_base: str | None = None
         self._panel_server: webview_http.BottleServer | None = None
+        # Bundle ID of the app that was frontmost before the first dock panel opened.
+        # Saved so we can restore focus when all dock panels close.
+        self._pre_panel_app_bundle: str | None = None
 
         self.menu = [
             rumps.MenuItem("Scribe  ⌃⌥L", callback=self.open_scribe),
@@ -436,6 +439,27 @@ class LiscribeApp(rumps.App):
         self._panel_server = server
         logger.debug("Panel HTTP server at %s", address)
 
+    def _restore_focus(self, bundle_id: str | None) -> None:
+        """Re-activate the app that was frontmost before we opened a dock panel.
+
+        Called on the main thread when the last dock panel closes. Explicitly
+        activating the previous app is more reliable than NSApp.hide_() on
+        macOS, which can leave Liscribe as the invisible frontmost app.
+        """
+        if bundle_id:
+            try:
+                for app in AppKit.NSWorkspace.sharedWorkspace().runningApplications():
+                    if app.bundleIdentifier() == bundle_id:
+                        app.activateWithOptions_(AppKit.NSApplicationActivateIgnoringOtherApps)
+                        return
+            except Exception:
+                logger.debug("Could not restore focus to %r", bundle_id, exc_info=True)
+        # Fallback: hide ourselves so macOS picks the next frontmost app.
+        try:
+            AppKit.NSApplication.sharedApplication().hide_(None)
+        except Exception:
+            pass
+
     def _open_panel(
         self,
         name: str,
@@ -447,6 +471,19 @@ class LiscribeApp(rumps.App):
         fragment: str | None = None,
     ) -> None:
         """Open a named panel, raising it if already open. fragment is optional hash (e.g. help/accessibility)."""
+        # When opening the first dock panel, record what app was frontmost so
+        # we can restore focus when all dock panels close.
+        if name in DOCK_PANELS and not any(p in self._panels for p in DOCK_PANELS):
+            try:
+                ws = AppKit.NSWorkspace.sharedWorkspace()
+                frontmost = ws.frontmostApplication()
+                if frontmost is not None:
+                    bid = frontmost.bundleIdentifier() or ""
+                    # Skip Python processes (dev mode) and empty bundle IDs.
+                    if bid and "python" not in bid.lower():
+                        self._pre_panel_app_bundle = bid
+            except Exception:
+                pass
         # Bring app to front so the panel surfaces above other windows (e.g. terminal).
         AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         self._ensure_panel_server()
@@ -481,9 +518,14 @@ class LiscribeApp(rumps.App):
                 if self._scribe_ctrl.state == ControllerState.RECORDING:
                     self._scribe_ctrl.cancel()
             self._panels.pop(name, None)
-            # Resign active and bring the app that was behind (e.g. Cursor) to the front so the user can click and type.
-            if name == "scribe":
-                AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().hide_(None))
+            # When the last dock panel closes, return focus to the app that had
+            # it before we opened. Explicitly activating the previous app is
+            # more reliable than NSApp.hide_() which can leave Liscribe as the
+            # invisible frontmost app on macOS.
+            if name in DOCK_PANELS and not any(p in self._panels for p in DOCK_PANELS):
+                bundle = self._pre_panel_app_bundle
+                self._pre_panel_app_bundle = None
+                AppHelper.callAfter(lambda b=bundle: self._restore_focus(b))
             AppHelper.callAfter(self._update_dock_visibility)
 
         window.events.closed += _on_closed

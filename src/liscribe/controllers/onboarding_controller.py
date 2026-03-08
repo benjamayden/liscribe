@@ -63,8 +63,8 @@ class OnboardingController:
         step_id = ONBOARDING_STEP_IDS[self._step_index]
         if step_id == "permissions":
             perms = _perms.get_all_permissions()
-            if not all(perms.get(k) for k in ("microphone", "accessibility", "input_monitoring")):
-                return {"ok": False, "error": "All permissions must be granted"}
+            if not perms.get("microphone"):
+                return {"ok": False, "error": "Microphone permission is required"}
         elif step_id == "model_download":
             if not any(self._model.is_downloaded(m["name"]) for m in self._model.list_models()):
                 return {"ok": False, "error": "At least one model must be downloaded"}

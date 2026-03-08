@@ -112,15 +112,27 @@ class TestAdvanceAndBack:
 
 
 class TestStepPermissions:
-    def test_advance_from_permissions_fails_when_not_all_granted(self, controller):
+    def test_advance_from_permissions_fails_when_microphone_not_granted(self, controller):
         controller.advance()  # -> permissions
         with patch(
             "liscribe.services.permissions_service.get_all_permissions",
-            return_value={"microphone": True, "accessibility": False, "input_monitoring": True},
+            return_value={"microphone": False, "accessibility": True, "input_monitoring": True},
         ):
             result = controller.advance()
         assert result.get("ok") is False
+        assert "Microphone" in (result.get("error") or "")
         assert controller.get_step()["step_index"] == 1
+
+    def test_advance_from_permissions_succeeds_when_only_microphone_granted(self, controller):
+        controller.advance()  # -> permissions
+        with patch(
+            "liscribe.services.permissions_service.get_all_permissions",
+            return_value={"microphone": True, "accessibility": False, "input_monitoring": False},
+        ):
+            result = controller.advance()
+        assert result.get("ok") is True
+        assert controller.get_step()["step_index"] == 2
+        assert controller.get_step()["step_id"] == "model_download"
 
     def test_advance_from_permissions_succeeds_when_all_granted(self, controller):
         controller.advance()  # -> permissions

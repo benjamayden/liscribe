@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol
 
+from liscribe.path_display import from_display, to_display
+
 if TYPE_CHECKING:
     from liscribe.controllers.scribe_controller import ScribeController
     from liscribe.services.audio_service import AudioService
@@ -91,18 +93,20 @@ class ScribeBridge:
         ]
 
     def get_save_path(self) -> str:
-        return self._controller.save_path
+        """Return save path in display form (~ for home)."""
+        return to_display(self._controller.save_path)
 
     def open_transcript(self, file_path: str) -> None:
         """Open the transcript file with the app set in Settings (same as Transcribe panel)."""
-        self._controller.open_transcript(file_path)
+        self._controller.open_transcript(from_display(file_path))
 
     # ------------------------------------------------------------------
     # Session configuration
     # ------------------------------------------------------------------
 
     def set_save_path(self, path: str) -> None:
-        self._controller.set_save_path(path)
+        """Accept display path (~); expand before passing to controller."""
+        self._controller.set_save_path(from_display(path or ""))
 
     def set_mic(self, name: str | None) -> None:
         """Set the active mic. Switches mid-recording if already recording."""
@@ -145,13 +149,13 @@ class ScribeBridge:
             return {
                 "ok": True,
                 "is_no_model_mode": result.is_no_model_mode,
-                "wav_path": result.wav_path,
-                "save_folder": result.save_folder,
+                "wav_path": to_display(result.wav_path),
+                "save_folder": to_display(result.save_folder),
                 "transcripts": [
                     {
                         "model_name": t.model_name,
                         "progress": t.progress,
-                        "md_path": t.md_path,
+                        "md_path": to_display(t.md_path) if t.md_path else t.md_path,
                         "error": t.error,
                         "is_done": t.is_done,
                     }
@@ -179,7 +183,12 @@ class ScribeBridge:
         return self._controller.get_elapsed_seconds()
 
     def get_transcription_progress(self) -> list[dict]:
-        return self._controller.get_transcription_progress()
+        """Return progress with paths in display form (~ for home)."""
+        raw = self._controller.get_transcription_progress()
+        return [
+            {**p, "md_path": to_display(p.get("md_path")) if p.get("md_path") else p.get("md_path")}
+            for p in raw
+        ]
 
     # ------------------------------------------------------------------
     # Notes
@@ -203,11 +212,13 @@ class ScribeBridge:
     # ------------------------------------------------------------------
 
     def get_state(self) -> dict:
-        """Return a full snapshot of the current panel state for JS rendering."""
+        """Return a full snapshot of the current panel state for JS rendering.
+        Paths in display form (~ for home).
+        """
         return {
             "state": self._controller.state.value,
             "is_using_fallback_mic": self._controller.is_using_fallback_mic,
-            "save_path": self._controller.save_path,
+            "save_path": to_display(self._controller.save_path),
             "selected_models": self._controller.selected_models,
             "current_mic": self._controller.current_mic,
         }

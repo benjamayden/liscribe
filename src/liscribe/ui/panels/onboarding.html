@@ -31,9 +31,12 @@
     </div>
     <div class="step-body">
       <h2>Required permissions</h2>
-      <p>Liscribe needs the following access to work. Grant each one in System Settings, then return here.</p>
+      <p>Grant <strong>Microphone</strong> to record and transcribe. Accessibility and Input Monitoring are only needed for <strong>Dictate</strong> (voice-to-text in any app); you can skip them and add them later from Settings.</p>
       <p class="perm-named-python-hint">ℹ️ In System Settings, Liscribe currently appears as <strong>Terminal</strong> or <strong>Python</strong> in the privacy list. Look for one of those when granting access below.</p>
       <div id="perm-list"></div>
+      <div id="perm-dictate-skip" style="display:none;" class="perm-relaunch-box">
+        <p>Accessibility and Input Monitoring are only needed for Dictate. You can continue without them. If you grant them later, quit liscribe completely and relaunch (e.g. run <code>liscribe</code> in terminal) for them to take effect.</p>
+      </div>
       <div id="perm-relaunch" style="display:none;" class="perm-relaunch-box">
         <p>✓ All permissions granted — nice!</p>
         <p style="font-size:12px;opacity:0.7;">Permissions sometimes need a relaunch to fully take effect.</p>
@@ -331,9 +334,13 @@
     ['microphone', 'accessibility', 'input_monitoring'].forEach(function(type) {
       list.appendChild(renderPermRow(type, labels[type], grantedSet.has(type)));
     });
-    var allGranted = grantedSet.has('microphone') && grantedSet.has('accessibility') && grantedSet.has('input_monitoring');
-    el('btn-permissions-next').disabled = !allGranted;
-    // Show relaunch box once all three are granted.
+    var micGranted = grantedSet.has('microphone');
+    var allGranted = micGranted && grantedSet.has('accessibility') && grantedSet.has('input_monitoring');
+    el('btn-permissions-next').disabled = !micGranted;
+    var dictateSkipBox = el('perm-dictate-skip');
+    if (dictateSkipBox) {
+      dictateSkipBox.style.display = (micGranted && !allGranted) ? '' : 'none';
+    }
     var relaunchBox = el('perm-relaunch');
     if (relaunchBox) {
       relaunchBox.style.display = allGranted ? '' : 'none';

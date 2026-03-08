@@ -273,7 +273,7 @@ class RecordingSession:
         if not set_output_device(self.speaker_device_name):
             return (
                 f"Could not switch to '{self.speaker_device_name}'. "
-                "Create a Multi-Output Device in Audio MIDI Setup (see setup)."
+                "Create a multi-output device in Audio MIDI Setup (see Settings → Dependencies) and set the name there if it differs."
             )
         atexit.register(self._restore_audio_output)
         try:
@@ -320,8 +320,8 @@ class RecordingSession:
                 cmd_name = load_config().get("command_alias", "rec")
                 print(
                     f"Error: Could not switch output to '{self.speaker_device_name}'.\n"
-                    "Make sure you've created a Multi-Output Device in Audio MIDI Setup\n"
-                    "that includes your speakers AND BlackHole 2ch.\n"
+                    "Create a multi-output device in Audio MIDI Setup that includes your speakers AND BlackHole 2ch.\n"
+                    "Set the device name in Settings → Dependencies if you use a custom name.\n"
                     f"Run '{cmd_name} setup' for instructions.",
                     file=sys.stderr,
                 )

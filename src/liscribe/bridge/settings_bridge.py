@@ -111,6 +111,8 @@ class SettingsBridge:
             "dictation_hotkey": self._config.dictation_hotkey,
             "scribe_models": list(self._config.scribe_models),
             "dictation_model": self._config.dictation_model,
+            "speaker_device": self._config.speaker_device,
+            "blackhole_device": self._config.blackhole_device,
         }
 
     def set_config(self, key: str, value: Any) -> None:
@@ -267,4 +269,10 @@ class SettingsBridge:
         """Return BlackHole install status for Deps tab."""
         from liscribe import platform_setup
         ok, msg = platform_setup.check_blackhole()
+        return {"installed": ok, "message": msg}
+
+    def check_multi_output_device(self, device_name: str) -> dict[str, Any]:
+        """Return multi-output device status for Deps tab. device_name must match Audio MIDI Setup."""
+        from liscribe import platform_setup
+        ok, msg = platform_setup.check_multi_output_device(device_name)
         return {"installed": ok, "message": msg}

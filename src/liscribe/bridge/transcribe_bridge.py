@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import webview
 
+from liscribe.path_display import from_display, to_display
+
 if TYPE_CHECKING:
     from liscribe.controllers.transcribe_controller import TranscribeController
     from liscribe.services.config_service import ConfigService
@@ -53,8 +55,13 @@ class TranscribeBridge:
     # ------------------------------------------------------------------
 
     def get_initial_state(self) -> dict:
-        """Return prefill for the panel (audio_path, output_folder). Consumed on first call."""
-        return self._controller.get_prefill()
+        """Return prefill for the panel (audio_path, output_folder). Consumed on first call.
+        Paths are returned in display form (~ for home) for anonymity.
+        """
+        state = self._controller.get_prefill()
+        state["audio_path"] = to_display(state.get("audio_path") or "")
+        state["output_folder"] = to_display(state.get("output_folder") or "")
+        return state
 
     # ------------------------------------------------------------------
     # Models
@@ -77,19 +84,22 @@ class TranscribeBridge:
     # ------------------------------------------------------------------
 
     def set_audio_path(self, path: str) -> dict:
-        """Set the audio file path. Validates extension. Returns {ok: True} or {ok: False, error: str}."""
+        """Set the audio file path. Validates extension. Returns {ok: True} or {ok: False, error: str}.
+        Accepts display paths (~); expands before passing to controller.
+        """
         if not path or not path.strip():
             self._controller.set_audio_path(None)
             return {"ok": True}
         try:
-            self._controller.set_audio_path(path.strip())
+            self._controller.set_audio_path(from_display(path.strip()))
             return {"ok": True}
         except ValueError as exc:
             logger.warning("set_audio_path rejected: %s", exc)
             return {"ok": False, "error": str(exc)}
 
     def set_output_folder(self, path: str) -> None:
-        self._controller.set_output_folder(path or "")
+        """Accept display path (~); expand before passing to controller."""
+        self._controller.set_output_folder(from_display(path or ""))
 
     def set_models(self, model_names: list[str]) -> None:
         self._controller.set_models(model_names or [])
@@ -109,7 +119,7 @@ class TranscribeBridge:
                 file_types=TRANSCRIBE_FILE_TYPES,
             )
             if result and len(result) > 0:
-                return result[0]
+                return to_display(result[0])
             return None
         except Exception as exc:
             logger.warning("pick_file failed: %s", exc)
@@ -125,7 +135,7 @@ class TranscribeBridge:
                 allow_multiple=False,
             )
             if result and len(result) > 0:
-                return result[0]
+                return to_display(result[0])
             return None
         except Exception as exc:
             logger.warning("pick_folder failed: %s", exc)
@@ -145,8 +155,12 @@ class TranscribeBridge:
             return {"ok": False, "error": str(exc)}
 
     def get_progress(self) -> list[dict]:
-        """Return per-model progress for the current run."""
-        return self._controller.get_progress()
+        """Return per-model progress for the current run. Paths in display form (~ for home)."""
+        raw = self._controller.get_progress()
+        return [
+            {**p, "md_path": to_display(p.get("md_path")) if p.get("md_path") else p.get("md_path")}
+            for p in raw
+        ]
 
     # ------------------------------------------------------------------
     # Open transcript in external app
@@ -154,4 +168,4 @@ class TranscribeBridge:
 
     def open_transcript(self, file_path: str) -> None:
         """Open the transcript file with the app set in Settings."""
-        self._controller.open_transcript(file_path)
+        self._controller.open_transcript(from_display(file_path))

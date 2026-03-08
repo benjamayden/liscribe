@@ -112,7 +112,10 @@ def set_output_device(device_name: str) -> bool:
     return False
 
 
-def run_all_checks(include_speaker: bool = False) -> list[tuple[str, bool, str]]:
+def run_all_checks(
+    include_speaker: bool = False,
+    speaker_device_name: str | None = None,
+) -> list[tuple[str, bool, str]]:
     """Run platform checks. Returns list of (check_name, passed, message)."""
     results: list[tuple[str, bool, str]] = []
 
@@ -126,7 +129,8 @@ def run_all_checks(include_speaker: bool = False) -> list[tuple[str, bool, str]]
         ok, msg = check_switchaudio()
         results.append(("switchaudio-osx", ok, msg))
 
-        ok, msg = check_multi_output_device()
+        device_name = (speaker_device_name or "Multi-Output Device").strip() or "Multi-Output Device"
+        ok, msg = check_multi_output_device(device_name)
         results.append(("Multi-Output Device", ok, msg))
 
     return results
