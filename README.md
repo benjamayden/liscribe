@@ -81,7 +81,7 @@ If you want to record the speaker side of calls, you also need BlackHole 2ch and
 From the liscribe folder, run:
 
 ```bash
-bash install.sh
+./install.sh
 ```
 
 The script will:
@@ -200,7 +200,7 @@ Preferences covers the save folder, default microphone, hotkeys, text replacemen
 ## Uninstall
 
 ```bash
-bash uninstall.sh
+./uninstall.sh
 ```
 
 This removes the LaunchAgent, the shell alias, and the virtual environment. It does not delete your transcripts or the downloaded models — remove `~/.cache/liscribe` manually if you want those gone too.
