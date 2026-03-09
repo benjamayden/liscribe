@@ -238,6 +238,25 @@ class DictateController:
                 return self._stop_and_paste_async()
             return {"ok": True}
 
+    def handle_cancel(self) -> dict:
+        """Cancel an in-progress recording without transcribing or pasting.
+
+        RECORDING → stop audio, discard, call on_paste_complete (to hide overlay).
+        Any other state → no-op (too late to cancel if worker is already running).
+        """
+        with self._lock:
+            if self._state == DictateState.RECORDING:
+                self._state = DictateState.IDLE
+                self._is_hold_mode = False
+                self._start_time = None
+                self._worker_running = True
+                worker = threading.Thread(
+                    target=self._stop_audio_no_paste, daemon=True, name="dictate-cancel"
+                )
+                worker.start()
+                return {"ok": True, "cancelled": True}
+        return {"ok": True, "cancelled": False}
+
     # ------------------------------------------------------------------
     # Internal start / stop (called under _lock)
     # ------------------------------------------------------------------
@@ -291,6 +310,20 @@ class DictateController:
         self._last_worker = worker
         worker.start()
         return {"ok": True}
+
+    def _stop_audio_no_paste(self) -> None:
+        """Stop audio and discard — no transcription, no paste. Runs in a daemon thread."""
+        try:
+            self._audio.stop()
+        except Exception:
+            logger.debug("DictateController: cancel audio stop failed", exc_info=True)
+        finally:
+            self._worker_running = False
+            if self._dictate_temp_dir:
+                shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
+                self._dictate_temp_dir = None
+            if self._on_paste_complete:
+                self._on_paste_complete()
 
     def _do_paste_on_main(self, target: str | None, text: str) -> None:
         """Run on main thread: clipboard, optionally activate target app, always paste, optional Enter, notify, on_paste_complete."""

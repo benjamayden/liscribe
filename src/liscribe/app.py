@@ -63,6 +63,7 @@ from PyObjCTools import AppHelper
 
 from liscribe import app_instance
 from liscribe.bridge.dictate_bridge import DictateBridge
+from liscribe.ui.dictate_overlay import DictateOverlay
 from liscribe.bridge.onboarding_bridge import OnboardingBridge
 from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
 from liscribe.bridge.settings_bridge import SettingsBridge
@@ -326,13 +327,16 @@ class LiscribeApp(rumps.App):
             app_actions=_ScribeAppActionsImpl(self),
         )
 
+        # Dictate overlay (native NSPanel HUD — no pywebview).
+        self._dictate_overlay = DictateOverlay()
+
         # Dictate controller + bridge (Phase 6).
         self._dictate_ctrl = DictateController(
             audio=audio,
             model=model,
             config=config,
             can_dictate=has_dictate_permissions,
-            on_paste_complete=lambda: AppHelper.callAfter(self._close_dictate_panel),
+            on_paste_complete=lambda: AppHelper.callAfter(self._dictate_overlay.hide),
             run_on_main=AppHelper.callAfter,
         )
         self._dictate_bridge = DictateBridge(
@@ -639,92 +643,16 @@ class LiscribeApp(rumps.App):
         )
 
     def open_dictate(self, _: Any = None) -> None:
-        """Open the Dictate panel and start recording if idle (menu or hotkey)."""
+        """Start or stop dictation (menu bar shortcut)."""
         self._hotkey.start_dictate_listener()
-        if self._dictate_ctrl.is_recording:
-            x, y = self._cursor_position_for_panel(panel_width=320, panel_height=100)
-            self._open_dictate_panel(x=x, y=y)
-        else:
-            self._on_dictate_trigger("handle_toggle")
-
-    def _open_dictate_panel(self, x: int | None = None, y: int | None = None) -> None:
-        """Create or show the Dictate panel window at the given screen position."""
-        existing = self._panels.get("dictate")
-        if existing is not None:
-            try:
-                existing.show()
-                return
-            except Exception:
-                logger.warning("Could not show existing Dictate panel; recreating", exc_info=True)
-                self._panels.pop("dictate", None)
-
-        self._ensure_panel_server()
-        create_kwargs: dict[str, Any] = {"js_api": self._dictate_bridge}
-        if x is not None:
-            create_kwargs["x"] = x
-        if y is not None:
-            create_kwargs["y"] = y
-
-        window = webview.create_window(
-            "Dictate",
-            self._panel_url("dictate"),
-            width=320,
-            height=100,
-            resizable=False,
-            on_top=True,
-            min_size=(200, 80),
-            **create_kwargs,
-        )
-
-        def _on_closed() -> None:
-            self._panels.pop("dictate", None)
-
-        window.events.closed += _on_closed
-        self._panels["dictate"] = window
-
-        if not hasattr(window, "localization"):
-            from webview.localization import original_localization
-            window.localization = original_localization.copy()
-        if not hasattr(window, "js_api_endpoint"):
-            window.js_api_endpoint = None
-        if window.gui is None:
-            window.gui = webview.guilib
-        window.real_url = window.original_url
-
-        webview.guilib.create_window(window)
-
-    def _cursor_position_for_panel(
-        self, panel_width: int = 320, panel_height: int = 100
-    ) -> tuple[int, int]:
-        """Return (x, y) screen coords to place a panel near the mouse cursor.
-
-        Adjusts so the panel stays on screen. Falls back to (100, 100) on error.
-        """
-        try:
-            # NSEvent.mouseLocation() returns Cocoa coordinates (origin = bottom-left).
-            # Convert to top-left origin for pywebview by subtracting from screen height.
-            mouse = AppKit.NSEvent.mouseLocation()
-            screen = AppKit.NSScreen.mainScreen().frame()
-            screen_h = int(screen.size.height)
-            screen_w = int(screen.size.width)
-
-            x = int(mouse.x) + 12  # offset right of cursor
-            y = screen_h - int(mouse.y) - panel_height - 12  # convert Y + offset below cursor
-
-            # Clamp so panel stays on screen.
-            x = max(0, min(x, screen_w - panel_width))
-            y = max(0, min(y, screen_h - panel_height))
-            return x, y
-        except Exception:
-            logger.debug("Could not read cursor position for Dictate panel", exc_info=True)
-            return 100, 100
+        self._on_dictate_trigger("handle_toggle")
 
     # ------------------------------------------------------------------
     # Dictate hotkey callbacks (called from hotkey service)
     # ------------------------------------------------------------------
 
     def _on_dictate_trigger(self, handler_name: str) -> None:
-        """Call the controller, show panel or Setup Required modal."""
+        """Call the controller, show overlay or Setup Required modal."""
         ctrl = self._dictate_ctrl
         handler = getattr(ctrl, handler_name)
         result = handler()
@@ -747,8 +675,16 @@ class LiscribeApp(rumps.App):
             return
 
         if ctrl.is_recording:
-            x, y = self._cursor_position_for_panel(320, 100)
-            AppHelper.callAfter(self._open_dictate_panel, x, y)
+            AppHelper.callAfter(
+                self._dictate_overlay.show,
+                ctrl,
+                self._config.dictation_hotkey_display,
+                self._on_dictate_cancel,
+            )
+
+    def _on_dictate_cancel(self) -> None:
+        """Cancel button pressed in the overlay: stop recording without pasting."""
+        self._dictate_ctrl.handle_cancel()
 
     def _on_dictate_stop_if_recording(self) -> None:
         """Stop a toggle-mode recording on single ^ press. Does nothing when idle."""
@@ -763,15 +699,6 @@ class LiscribeApp(rumps.App):
 
     def _on_dictate_hold_end(self) -> None:
         self._on_dictate_trigger("handle_hold_end")
-
-    def _close_dictate_panel(self) -> None:
-        w = self._panels.get("dictate")
-        if w is not None:
-            try:
-                w.destroy()
-            except Exception as exc:
-                logger.warning("Could not destroy Dictate panel: %s", exc)
-            self._panels.pop("dictate", None)
 
     def _close_settings_panel(self) -> None:
         """Close the Settings panel (called from bridge when user clicks header close)."""

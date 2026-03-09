@@ -89,6 +89,8 @@ _DICTATE_KEY_TO_FLAG: dict[str, int] = {
 
 # Seconds the second press must be held to enter hold-recording mode.
 _HOLD_THRESHOLD = 0.40
+# Seconds after a single tap before the "first tap" state is automatically cleared.
+_FIRST_TAP_TIMEOUT = 0.40
 
 
 def _parse_hotkey_spec(spec: str) -> tuple[int, str] | None:
@@ -150,6 +152,7 @@ class HotkeyService:
         self._prev_flags: int = 0              # last observed NSEventModifierFlags
         self._after_first_tap: bool = False    # True after one quick tap; waiting for second
         self._hold_timer: threading.Timer | None = None
+        self._first_tap_timer: threading.Timer | None = None
         self._in_hold_recording: bool = False
         self._expect_release_to_stop: bool = False
 
@@ -235,6 +238,11 @@ class HotkeyService:
         self._remove_monitors(self._dictate_monitors)
         self._dictate_monitors = []
         self._dictate_monitors_active = False
+        with self._lock:
+            if self._first_tap_timer is not None:
+                self._first_tap_timer.cancel()
+                self._first_tap_timer = None
+            self._after_first_tap = False
         self.start_dictate_listener()
 
     def _stop_on_main(self) -> None:
@@ -243,6 +251,11 @@ class HotkeyService:
         self._scribe_monitors = []
         self._dictate_monitors = []
         self._dictate_monitors_active = False
+        with self._lock:
+            if self._first_tap_timer is not None:
+                self._first_tap_timer.cancel()
+                self._first_tap_timer = None
+            self._after_first_tap = False
 
     @staticmethod
     def _remove_monitors(monitors: list) -> None:
@@ -365,6 +378,10 @@ class HotkeyService:
                 return
             if self._hold_timer is not None:
                 return
+            # Cancel any pending first-tap timeout; user is pressing again.
+            if self._first_tap_timer is not None:
+                self._first_tap_timer.cancel()
+                self._first_tap_timer = None
             timer = threading.Timer(_HOLD_THRESHOLD, self._trigger_hold_mode)
             timer.daemon = True
             self._hold_timer = timer
@@ -390,6 +407,7 @@ class HotkeyService:
         do_hold_end = False
         do_toggle = False
         do_first_tap = False
+        first_tap_timer = None
 
         with self._lock:
             if self._expect_release_to_stop:
@@ -407,6 +425,9 @@ class HotkeyService:
                 else:
                     self._after_first_tap = True
                     do_first_tap = True
+                    first_tap_timer = threading.Timer(_FIRST_TAP_TIMEOUT, self._expire_first_tap)
+                    first_tap_timer.daemon = True
+                    self._first_tap_timer = first_tap_timer
 
         if do_single_release:
             self._on_dictate_single_release()
@@ -414,4 +435,12 @@ class HotkeyService:
             self._on_dictate_hold_end()
         elif do_toggle:
             self._on_dictate_toggle()
-        # do_first_tap: just waiting — no callback
+        elif do_first_tap and first_tap_timer is not None:
+            # Start outside lock — timer callback also acquires lock
+            first_tap_timer.start()
+
+    def _expire_first_tap(self) -> None:
+        """First-tap timeout fired: clear the first-tap state. Runs on Timer thread."""
+        with self._lock:
+            self._first_tap_timer = None
+            self._after_first_tap = False

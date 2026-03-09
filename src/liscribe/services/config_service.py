@@ -135,6 +135,18 @@ class ConfigService:
         self.set("dictation_hotkey", key)
 
     @property
+    def dictation_hotkey_display(self) -> str:
+        """Short symbol for the configured dictation hotkey, e.g. '^' for ctrl."""
+        _display = {
+            "left_ctrl": "^",
+            "right_ctrl": "^",
+            "right_option": "⌥",
+            "right_shift": "⇧",
+            "caps_lock": "⇪",
+        }
+        return _display.get(self.dictation_hotkey, "^")
+
+    @property
     def dictation_auto_enter(self) -> bool:
         v = self._values.get("dictation_auto_enter", True)
         if isinstance(v, bool):
