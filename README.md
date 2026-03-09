@@ -4,19 +4,19 @@ Liscribe records your voice and transcribes it on your Mac, entirely offline.
 
 ---
 
-## The honest bit
+## Disclaimer
 
-This is not a real Mac app. There is no `.app` bundle you drag to your Applications folder. Enrolling in Apple's Developer Program costs $78 a year, and I have not done that. What you get instead is a Python program that runs in your menu bar and looks reasonably native — but you need to install it from Terminal, and you need to open Terminal to launch it until you set up the login item.
+This is version 7, of this vibe project and is not a real Mac app. There is no `.app` bundle you drag to your Applications folder. Enrolling in Apple's Developer Program costs $78 a year, and I have not done that. What you get instead is a Python program that runs in your menu bar and looks reasonably native — but you need to install it from Terminal, and you need to open Terminal to launch it until you set up the login item.
 
 If you have never used Homebrew or Python before, setup will feel unfamiliar. It works, but it takes a few minutes and a handful of Terminal commands. The installer handles most of the complexity, and there is an onboarding wizard for the rest. I am being upfront about this so you are not surprised.
 
 ---
 
-## Why you might want it
+## Why it exists
 
 Every transcription service I could find either sends your audio to a server, charges a subscription, or both. Liscribe does neither. The transcription model runs on your machine. Your audio never leaves your computer. There is no account, no API key, no usage limit, and no monthly bill.
 
-It is built on [faster-whisper](https://github.com/guillaumekynast/faster-whisper), which is a fast implementation of OpenAI's Whisper model. The model downloads once from Hugging Face when you first use it. After that, nothing reaches the internet.
+Liscribe runs on [faster-whisper](https://github.com/SYSTRAN/faster-whisper), a fast implementation of OpenAI's Whisper model. The model downloads once from Hugging Face when you first use it. After that, nothing reaches the internet.
 
 ---
 
@@ -58,7 +58,7 @@ It is built on [faster-whisper](https://github.com/guillaumekynast/faster-whispe
 
 ---
 
-## What you need before you start
+## Before you start
 
 - macOS (tested on Sonoma and later)
 - Python 3.10 or newer (the installer will check)
@@ -102,13 +102,13 @@ Most steps do not need sudo. The **Homebrew** installer may ask for your passwor
 
 ---
 
-## How to run it
+## Running it
 
 ```bash
 liscribe
 ```
 
-This opens the app window and puts the menu bar icon in place. When you quit the window, Liscribe stays running in the menu bar — click the icon to bring it back. There is no Dock icon while it is in the background.
+The app opens and drops the icon into your menu bar. Close the window and Liscribe keeps running in the background — click the icon to bring it back. No Dock icon while it is in the background.
 
 <p align="center"><img src="docs/top_menu.png" width="200" alt="Menu bar menu"></p>
 
@@ -171,7 +171,7 @@ Liscribe uses Whisper models. The default is `base`, which is about 145 MB and w
 | Model  | Size   | Notes                          |
 |--------|--------|-------------------------------|
 | tiny   | ~75 MB | Fast, less accurate            |
-| base   | ~145 MB | Default. Good balance         |
+| base   | ~145 MB | Default. Good for most people |
 | small  | ~465 MB | Noticeably better accuracy    |
 | medium | ~1.5 GB | Accurate, slower on older Macs|
 | large  | ~3 GB  | Best quality, needs fast Mac  |
@@ -180,7 +180,7 @@ Models are downloaded from Hugging Face and cached at `~/.cache/liscribe`. You c
 
 ---
 
-## Data and privacy
+## Privacy
 
 Nothing you record or transcribe is ever sent anywhere. The transcription runs locally on your CPU or Apple Silicon Neural Engine. The only outbound network activity is the one-time model download from Hugging Face when you first set up a model. After that, Liscribe does not make any network requests.
 
@@ -190,7 +190,7 @@ Config is stored at `~/.config/liscribe/config.json`. Transcripts go to `~/trans
 
 ## Settings
 
-Preferences covers the save folder, default microphone, hotkeys, text replacements, and model management. There is also a Dependencies tab that shows whether BlackHole and PortAudio are installed correctly.
+Preferences covers the save folder, default microphone, hotkeys, text replacements, and model management. The Dependencies tab shows whether BlackHole and PortAudio are installed correctly.
 
 ![Settings](docs/settings.png)
 
