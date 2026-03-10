@@ -462,11 +462,13 @@
       const result = await pywebview.api.stop_and_save();
 
       if (!result.ok) {
+        isTranscribing = false;
         console.error('stop_and_save error:', result.error);
         return;
       }
 
       if (result.is_no_model_mode) {
+        isTranscribing = false;
         pendingWavPath = result.wav_path;
         pendingSaveFolder = result.save_folder || null;
         el('no-model-wav-path').textContent = result.wav_path || '';
@@ -480,6 +482,7 @@
       progressInterval = setInterval(pollProgress, POLL_PROGRESS_MS);
 
     } catch (err) {
+      isTranscribing = false;
       console.error('doStopAndSave:', err);
     }
   }

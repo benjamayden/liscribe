@@ -226,7 +226,7 @@ class TranscribeController:
             return
         with self._lock:
             self._cancelled = True
-        self._state = TranscribeState.IDLE
+            self._state = TranscribeState.IDLE
 
     def get_progress(self) -> list[dict]:
         """Return JSON-serialisable progress for the UI."""
