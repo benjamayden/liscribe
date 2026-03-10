@@ -67,3 +67,11 @@ class DictateBridge:
         except Exception:
             logger.debug("DictateBridge.get_state failed", exc_info=True)
             return "idle"
+
+    def stop_recording(self) -> dict:
+        """Stop recording via UI button — clipboard copy only, no paste."""
+        try:
+            return self._controller.request_stop_from_button()
+        except Exception:
+            logger.debug("DictateBridge.stop_recording failed", exc_info=True)
+            return {"ok": False}

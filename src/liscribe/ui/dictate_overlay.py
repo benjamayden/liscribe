@@ -207,18 +207,23 @@ class _OverlayController(NSObject):
         self._panel = None
         self._label = None
         self._btn = None
+        self._done_btn = None
         self._timer = None
+        self._done_timer = None
         self._tick_count = 0
         self._dictate_ctrl = None
         self._hotkey_display = "^"
         self._on_cancel = None
+        self._on_done = None
+        self._showing_done_toast = False
         return self
 
     @objc.python_method
-    def setup(self, ctrl: object, hotkey: str, on_cancel: Callable[[], None]) -> None:
+    def setup(self, ctrl: object, hotkey: str, on_cancel: Callable[[], None], on_done: Callable[[], None] | None = None) -> None:
         self._dictate_ctrl = ctrl
         self._hotkey_display = hotkey or "^"
         self._on_cancel = on_cancel
+        self._on_done = on_done
 
     @objc.python_method
     def show(self) -> None:
@@ -262,7 +267,7 @@ class _OverlayController(NSObject):
                 pass  # CGColor not available; plain dark bg is fine
 
         # Status label (left side, flexible width).
-        label_w = _PANEL_W - 12 - 36
+        label_w = _PANEL_W - 12 - 36 - 50  # reduced to make room for Done button
         label = AppKit.NSTextField.alloc().initWithFrame_(
             AppKit.NSMakeRect(12, 14, label_w, 20)
         )
@@ -279,6 +284,23 @@ class _OverlayController(NSObject):
             label.setFont_(AppKit.NSFont.userFixedPitchFontOfSize_(13.0))
         label.setStringValue_("● 0:00  ~~~~~~")
         content.addSubview_(label)
+
+        # Done button (to the left of cancel button, 44×24px).
+        btn_color = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.9, 0.9, 1.0)
+        done_btn = AppKit.NSButton.alloc().initWithFrame_(
+            AppKit.NSMakeRect(_PANEL_W - 80, 12, 44, 24)
+        )
+        done_btn.setBordered_(False)
+        done_attrs = {
+            AppKit.NSForegroundColorAttributeName: btn_color,
+            AppKit.NSFontAttributeName: AppKit.NSFont.systemFontOfSize_(13.0),
+        }
+        done_btn.setAttributedTitle_(
+            AppKit.NSAttributedString.alloc().initWithString_attributes_("Done", done_attrs)
+        )
+        done_btn.setTarget_(self)
+        done_btn.setAction_("doneAction:")
+        content.addSubview_(done_btn)
 
         # Cancel button (right side, fixed 26×26px).
         btn = AppKit.NSButton.alloc().initWithFrame_(
@@ -300,6 +322,7 @@ class _OverlayController(NSObject):
         panel.orderFront_(None)
         self._panel = panel
         self._label = label
+        self._done_btn = done_btn
         self._btn = btn
         self._tick_count = 0
 
@@ -312,6 +335,9 @@ class _OverlayController(NSObject):
             ctrl = self._dictate_ctrl
             if ctrl is None or self._label is None:
                 return
+            # During done toast, keep the toast message and hide buttons — don't update.
+            if self._showing_done_toast:
+                return
             self._tick_count += 1
             ui_state = ctrl.get_ui_state()
             if ui_state == "recording":
@@ -321,11 +347,15 @@ class _OverlayController(NSObject):
                 text = f"● {_format_elapsed(elapsed)}  {wave} — {self._hotkey_display} to stop"
                 if self._btn is not None:
                     self._btn.setHidden_(False)
+                if self._done_btn is not None:
+                    self._done_btn.setHidden_(False)
             elif ui_state == "processing":
                 dots = "." * (self._tick_count % 4)
                 text = f"◌ Transcribing{dots:<3}"
                 if self._btn is not None:
                     self._btn.setHidden_(True)
+                if self._done_btn is not None:
+                    self._done_btn.setHidden_(True)
             else:
                 return
             self._label.setStringValue_(text)
@@ -339,8 +369,52 @@ class _OverlayController(NSObject):
         except Exception:
             logger.debug("_OverlayController.cancelAction_ error", exc_info=True)
 
+    def doneAction_(self, sender: object) -> None:
+        try:
+            if self._on_done is not None:
+                self._on_done()
+        except Exception:
+            logger.debug("doneAction_ error", exc_info=True)
+
+    @objc.python_method
+    def show_done_toast(self) -> None:
+        """Show '✓ Copied to clipboard' toast then auto-hide after 1.5s. Must be called on main thread."""
+        import AppKit
+        # If the panel was already closed (e.g. user hit cancel before paste completed), do nothing.
+        if self._panel is None:
+            return
+        self._showing_done_toast = True
+        if self._label is not None:
+            self._label.setStringValue_("✓ Copied to clipboard")
+        if self._btn is not None:
+            self._btn.setHidden_(True)
+        if self._done_btn is not None:
+            self._done_btn.setHidden_(True)
+        # Cancel the repeating tick timer so it does not interfere with toast.
+        if self._timer is not None:
+            self._timer.invalidate()
+            self._timer = None
+        # Cancel any pre-existing done timer.
+        if self._done_timer is not None:
+            self._done_timer.invalidate()
+            self._done_timer = None
+        self._done_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            1.5, self, "_done_toast_finished:", None, False
+        )
+
+    def _done_toast_finished_(self, timer: object) -> None:
+        try:
+            self._showing_done_toast = False
+            self.hide()
+        except Exception:
+            logger.debug("_done_toast_finished_ error", exc_info=True)
+
     @objc.python_method
     def hide(self) -> None:
+        if self._done_timer is not None:
+            self._done_timer.invalidate()
+            self._done_timer = None
+        self._showing_done_toast = False
         if self._timer is not None:
             self._timer.invalidate()
             self._timer = None
@@ -348,6 +422,7 @@ class _OverlayController(NSObject):
             self._panel.orderOut_(None)
             self._panel = None
             self._label = None
+            self._done_btn = None
             self._btn = None
             self._tick_count = 0
 
@@ -370,11 +445,17 @@ class DictateOverlay:
         ctrl: "DictateController",
         hotkey_display: str,
         on_cancel: Callable[[], None],
+        on_done: Callable[[], None] | None = None,
     ) -> None:
         if self._controller is None:
             self._controller = _OverlayController.alloc().init()
-        self._controller.setup(ctrl, hotkey_display, on_cancel)
+        self._controller.setup(ctrl, hotkey_display, on_cancel, on_done)
         self._controller.show()
+
+    def show_done_toast(self) -> None:
+        """Show the '✓ Copied to clipboard' toast then auto-hide. Must be called on main thread."""
+        if self._controller is not None:
+            self._controller.show_done_toast()
 
     def hide(self) -> None:
         if self._controller is not None:

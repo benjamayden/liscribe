@@ -336,7 +336,7 @@ class LiscribeApp(rumps.App):
             model=model,
             config=config,
             can_dictate=has_dictate_permissions,
-            on_paste_complete=lambda: AppHelper.callAfter(self._dictate_overlay.hide),
+            on_paste_complete=lambda: AppHelper.callAfter(self._dictate_overlay.show_done_toast),
             run_on_main=AppHelper.callAfter,
         )
         self._dictate_bridge = DictateBridge(
@@ -681,11 +681,19 @@ class LiscribeApp(rumps.App):
                 ctrl,
                 self._config.dictation_hotkey_display,
                 self._on_dictate_cancel,
+                self._on_dictate_done_button,
             )
 
     def _on_dictate_cancel(self) -> None:
         """Cancel button pressed in the overlay: stop recording without pasting."""
         self._dictate_ctrl.handle_cancel()
+        # Hide the overlay immediately on cancel — do not wait for on_paste_complete,
+        # which now shows a toast (not appropriate after cancel).
+        AppHelper.callAfter(self._dictate_overlay.hide)
+
+    def _on_dictate_done_button(self) -> None:
+        """Done button pressed in overlay: stop recording, clipboard only."""
+        self._dictate_ctrl.request_stop_from_button()
 
     def _on_dictate_stop_if_recording(self) -> None:
         """Stop a toggle-mode recording on single ^ press. Does nothing when idle."""
