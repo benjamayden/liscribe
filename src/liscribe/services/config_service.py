@@ -24,15 +24,17 @@ _LAUNCHD_PLIST = Path.home() / "Library/LaunchAgents/com.liscribe.app.plist"
 
 _CRASH_RECOVERY_LABEL = "com.liscribe.crashrecovery"
 _CRASH_RECOVERY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_CRASH_RECOVERY_LABEL}.plist"
+_CRASH_RECOVERY_DISABLED_MARKER = Path(_config.CONFIG_DIR) / "crash_recovery_disabled"
 
 
 def is_crash_recovery_enabled() -> bool:
     """Return True if the crash recovery LaunchAgent plist is installed on disk.
 
     Uses plist file presence as a proxy for launchd registration state.
-    These can diverge if the plist is deleted manually without calling
-    launchctl bootout, but this is an acceptable edge case for UI display.
+    Returns False if user has explicitly disabled crash recovery (marker file present).
     """
+    if _CRASH_RECOVERY_DISABLED_MARKER.exists():
+        return False
     return _CRASH_RECOVERY_PLIST.exists()
 
 
@@ -41,7 +43,11 @@ def install_crash_recovery_agent(bundle: Path) -> None:
 
     Idempotent: only writes if the plist does not already exist.
     Only works when running as a .app bundle.
+    Respects explicit user opt-out (marker file created by uninstall_crash_recovery_agent).
     """
+    # Honour explicit user opt-out (marker set by uninstall_crash_recovery_agent)
+    if _CRASH_RECOVERY_DISABLED_MARKER.exists():
+        return
     if _CRASH_RECOVERY_PLIST.exists():
         return
     _CRASH_RECOVERY_PLIST.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +68,8 @@ def install_crash_recovery_agent(bundle: Path) -> None:
             capture_output=True,
             timeout=5,
         )
+        # Remove opt-out marker since user is now opted in
+        _CRASH_RECOVERY_DISABLED_MARKER.unlink(missing_ok=True)
         logger.info("Crash recovery agent installed: %s", _CRASH_RECOVERY_PLIST)
     except Exception as exc:
         logger.warning("Failed to install crash recovery agent: %s", exc)
@@ -82,6 +90,12 @@ def uninstall_crash_recovery_agent() -> None:
     except Exception as exc:
         logger.debug("bootout for crash recovery failed: %s", exc)
     _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
+    # Write opt-out marker so auto-install on next launch is skipped
+    try:
+        _CRASH_RECOVERY_DISABLED_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        _CRASH_RECOVERY_DISABLED_MARKER.touch()
+    except Exception:
+        pass
     logger.info("Crash recovery agent removed")
 
 
