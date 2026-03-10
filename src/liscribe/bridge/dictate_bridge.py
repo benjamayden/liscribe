@@ -69,7 +69,11 @@ class DictateBridge:
             return "idle"
 
     def stop_recording(self) -> dict:
-        """Stop recording via UI button — clipboard copy only, no paste."""
+        """Stop recording via UI button — clipboard copy only, no paste.
+
+        Reserved for future HTML panel — not currently invoked from JS
+        (native overlay uses callback via doneAction_ / _on_dictate_done).
+        """
         try:
             return self._controller.request_stop_from_button()
         except Exception:

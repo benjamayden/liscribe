@@ -28,6 +28,7 @@ _PANEL_H = 48
 _TICK_INTERVAL = 0.10
 _BAR_CHARS = "▁▂▃▄▅▆▇█"
 _N_BARS = 6
+_DONE_BTN_W = 44  # width of the Done button in _build_panel
 
 # NSWindowStyleMask constants (AppKit SDK values)
 _STYLE_BORDERLESS = 0
@@ -267,7 +268,7 @@ class _OverlayController(NSObject):
                 pass  # CGColor not available; plain dark bg is fine
 
         # Status label (left side, flexible width).
-        label_w = _PANEL_W - 12 - 36 - 50  # reduced to make room for Done button
+        label_w = _PANEL_W - 12 - 36 - (_DONE_BTN_W + 6)  # reduced to make room for Done button
         label = AppKit.NSTextField.alloc().initWithFrame_(
             AppKit.NSMakeRect(12, 14, label_w, 20)
         )
@@ -399,15 +400,15 @@ class _OverlayController(NSObject):
             self._done_timer.invalidate()
             self._done_timer = None
         self._done_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-            1.5, self, "_done_toast_finished:", None, False
+            1.5, self, "doneToastFinished:", None, False
         )
 
-    def _done_toast_finished_(self, timer: object) -> None:
+    def doneToastFinished_(self, timer: object) -> None:
         try:
             self._showing_done_toast = False
             self.hide()
         except Exception:
-            logger.debug("_done_toast_finished_ error", exc_info=True)
+            logger.debug("doneToastFinished_ error", exc_info=True)
 
     @objc.python_method
     def hide(self) -> None:
