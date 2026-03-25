@@ -59,6 +59,12 @@ from liscribe.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
 
+try:
+    import pynput as _pynput  # noqa: F401
+    _PYNPUT_AVAILABLE = True
+except ImportError:
+    _PYNPUT_AVAILABLE = False
+
 # ──────────────────────────────────────────────────────────────
 # NSEvent constants (stable macOS SDK values; no import required)
 # ──────────────────────────────────────────────────────────────

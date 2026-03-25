@@ -191,6 +191,7 @@ class DictateController:
         self._last_worker: threading.Thread | None = None
         self._target_bundle_id: str | None = None
         self._dictate_temp_dir: str | None = None
+        self._is_processing: bool = False
 
     # ------------------------------------------------------------------
     # Read-only state
@@ -213,7 +214,7 @@ class DictateController:
         """Return 'recording' | 'processing' | 'idle' for panel UI."""
         if self._state == DictateState.RECORDING:
             return "recording"
-        if self._state == DictateState.TRANSCRIBING:
+        if self._is_processing:
             return "processing"
         return "idle"
 
@@ -338,8 +339,9 @@ class DictateController:
         return {"ok": True}
 
     def _stop_and_paste_async(self) -> dict:
-        """Transition state to TRANSCRIBING and launch the stop+transcribe+paste thread."""
-        self._state = DictateState.TRANSCRIBING
+        """Transition state to IDLE and launch the stop+transcribe+paste thread."""
+        self._state = DictateState.IDLE
+        self._is_processing = True
         self._is_hold_mode = False
         recording_start = self._start_time
         self._start_time = None
@@ -532,6 +534,7 @@ class DictateController:
                     _notify("Dictated text copied to clipboard", text[:80])
         finally:
             self._state = DictateState.IDLE
+            self._is_processing = False
             if self._dictate_temp_dir:
                 shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
                 self._dictate_temp_dir = None
