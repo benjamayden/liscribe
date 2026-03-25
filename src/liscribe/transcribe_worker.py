@@ -8,9 +8,14 @@ Writes to result_file: OK:<md_path> or ERROR:<message>
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
 
 from liscribe.config import load_config
 from liscribe.notes import Note
@@ -202,6 +207,19 @@ def main() -> None:
         cleanup_audio(wav_path, all_md_paths)
 
     result_file.write_text(f"OK:{md_path}", encoding="utf-8")
+
+    webhook_url = cfg.get("webhook_url")
+    if webhook_url and cfg.get("webhook_auto_send_transcripts", False):
+        from liscribe import webhook as _webhook
+        _webhook.send_transcript(
+            webhook_url,
+            md_path,
+            source="scribe",
+            word_count=result.word_count if hasattr(result, "word_count") else 0,
+            duration_seconds=round(result.duration, 1) if hasattr(result, "duration") else 0.0,
+            auth_header_name=cfg.get("webhook_auth_header_name", ""),
+            auth_header_value=cfg.get("webhook_auth_header_value", ""),
+        )
 
 
 if __name__ == "__main__":

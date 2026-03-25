@@ -361,6 +361,63 @@ class ConfigService:
     def rec_binary_path(self, path: str | None) -> None:
         self.set("rec_binary_path", path)
 
+    @property
+    def webhook_url(self) -> str | None:
+        v = self._values.get("webhook_url")
+        return str(v) if v else None
+
+    @webhook_url.setter
+    def webhook_url(self, url: str | None) -> None:
+        self.set("webhook_url", url or None)
+
+    @property
+    def webhook_auth_header_name(self) -> str:
+        return str(self._values.get("webhook_auth_header_name") or "")
+
+    @webhook_auth_header_name.setter
+    def webhook_auth_header_name(self, name: str) -> None:
+        self.set("webhook_auth_header_name", name or "")
+
+    @property
+    def webhook_auth_header_value(self) -> str:
+        return str(self._values.get("webhook_auth_header_value") or "")
+
+    @webhook_auth_header_value.setter
+    def webhook_auth_header_value(self, value: str) -> None:
+        self.set("webhook_auth_header_value", value or "")
+
+    @property
+    def webhook_auto_send_transcripts(self) -> bool:
+        return bool(self._values.get("webhook_auto_send_transcripts", False))
+
+    @webhook_auto_send_transcripts.setter
+    def webhook_auto_send_transcripts(self, value: bool) -> None:
+        self.set("webhook_auto_send_transcripts", value)
+
+    @property
+    def webhook_auto_send_dictate(self) -> bool:
+        return bool(self._values.get("webhook_auto_send_dictate", False))
+
+    @webhook_auto_send_dictate.setter
+    def webhook_auto_send_dictate(self, value: bool) -> None:
+        self.set("webhook_auto_send_dictate", value)
+
+    @property
+    def mic_label(self) -> str:
+        return str(self._values.get("mic_label") or "in")
+
+    @mic_label.setter
+    def mic_label(self, label: str) -> None:
+        self.set("mic_label", label or "in")
+
+    @property
+    def speaker_label(self) -> str:
+        return str(self._values.get("speaker_label") or "out")
+
+    @speaker_label.setter
+    def speaker_label(self, label: str) -> None:
+        self.set("speaker_label", label or "out")
+
     # ------------------------------------------------------------------
     # Scribe-specific settings (Phase 4)
     # ------------------------------------------------------------------

@@ -80,6 +80,8 @@ def _build_chronological_transcript(
     segments: list[dict],
     notes: list[Note] | None = None,
     include_timestamps: bool = False,
+    mic_label: str = "in",
+    speaker_label: str = "out",
 ) -> str:
     """Build chronological transcript with consecutive same-speaker segments grouped; blank line between speaker changes."""
     seg_notes: dict[int, list[int]] = defaultdict(list)
@@ -91,9 +93,9 @@ def _build_chronological_transcript(
     def speaker_for(seg: dict) -> str:
         source = seg.get("source")
         if source == "mic":
-            return "in"
+            return mic_label
         if source == "speaker":
-            return "out"
+            return speaker_label
         return seg.get("speaker", "Speaker")
 
     # Group consecutive segments by speaker
@@ -184,6 +186,8 @@ def build_markdown(
                 result.segments,
                 notes=notes,
                 include_timestamps=bool(cfg.get("source_include_timestamps", False)),
+                mic_label=str(cfg.get("mic_label") or "in"),
+                speaker_label=str(cfg.get("speaker_label") or "out"),
             )
         )
     elif notes and result.segments:
