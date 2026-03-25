@@ -612,6 +612,16 @@ input[type="checkbox"] {
   margin-bottom: 8px;
 }
 
+/* Clickable WAV path shown in error state below a progress row */
+.copyable-path {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  color: var(--text-muted);
+}
+.copyable-path:hover {
+  color: var(--text-primary);
+}
+
 /* "Open Transcript" button rendered below each completed row */
 .open-transcript-btn {
   font-size: 12px;
@@ -650,6 +660,13 @@ input[type="checkbox"] {
   margin-top: 4px;
 }
 
+.form-row-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+
 .perm-named-python-hint {
   font-size: 12px;
   color: var(--text-muted);
@@ -666,6 +683,42 @@ input[type="checkbox"] {
   background: var(--surface-raised, rgba(255,255,255,0.04));
   border: 1px solid var(--accent-green, #7ec8a4);
   border-radius: 8px;
+}
+
+/* Input Monitoring setup guidance block */
+.input-monitoring-guidance {
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent-orange);
+  margin: 4px 0 8px 0;
+  font-size: 12px;
+}
+
+.im-guidance-text {
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.im-paths {
+  margin-bottom: 10px;
+}
+
+.im-path-row {
+  margin-bottom: 4px;
+}
+
+/* .copyable-path already defined above; extend with copied state */
+.copyable-path.copied {
+  color: var(--accent-green);
+}
+
+kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
 }
 
 

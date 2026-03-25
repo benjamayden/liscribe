@@ -210,6 +210,10 @@ class SettingsBridge:
         """Open the given System Settings pane (microphone, accessibility, input_monitoring)."""
         _perms.open_system_settings(pane)
 
+    def get_python_paths(self) -> dict[str, str]:
+        """Return Python binary paths for Input Monitoring setup guidance."""
+        return _perms.get_python_executable_paths()
+
     # ------------------------------------------------------------------
     # App picker / Help
     # ------------------------------------------------------------------
@@ -382,4 +386,22 @@ class SettingsBridge:
             return {"ok": False, "error": "Invalid index"}
         rules.pop(index)
         self._config.replacement_rules = rules
+        return {"ok": True}
+
+    # ------------------------------------------------------------------
+    # Crash recovery (Phase 6)
+    # ------------------------------------------------------------------
+
+    def get_crash_recovery_enabled(self) -> bool:
+        """Return True if crash recovery is enabled."""
+        from liscribe.services.config_service import is_crash_recovery_enabled
+        return is_crash_recovery_enabled()
+
+    def set_crash_recovery_enabled(self, enabled: bool) -> dict[str, Any]:
+        """Enable or disable crash recovery watchdog."""
+        from liscribe.services.config_service import disable_crash_recovery, enable_crash_recovery
+        if enabled:
+            enable_crash_recovery()
+        else:
+            disable_crash_recovery()
         return {"ok": True}

@@ -260,8 +260,11 @@ class DictateController:
     def handle_cancel(self) -> dict:
         """Cancel an in-progress recording without transcribing or pasting.
 
-        RECORDING → stop audio, discard, call on_paste_complete (to hide overlay).
+        RECORDING → stop audio, discard (no paste, no toast).
         Any other state → no-op (too late to cancel if worker is already running).
+
+        The overlay is hidden directly in app.py (_on_dictate_cancel), not via
+        on_paste_complete, so _stop_audio_no_paste does not call on_paste_complete.
         """
         with self._lock:
             if self._state == DictateState.RECORDING:
@@ -274,6 +277,27 @@ class DictateController:
                 worker.start()
                 return {"ok": True, "cancelled": True}
         return {"ok": True, "cancelled": False}
+
+    def request_stop_from_button(self) -> dict:
+        """Stop recording via the Done button — transcribe and copy to clipboard, no paste.
+
+        Only acts when in RECORDING state.
+        """
+        with self._lock:
+            if self._state == DictateState.RECORDING:
+                self._state = DictateState.IDLE
+                self._is_hold_mode = False
+                self._start_time = None
+                self._worker_running = True
+                worker = threading.Thread(
+                    target=self._stop_transcribe_clipboard_only,
+                    daemon=True,
+                    name="dictate-done-worker",
+                )
+                self._last_worker = worker
+                worker.start()
+                return {"ok": True}
+        return {"ok": True}
 
     # ------------------------------------------------------------------
     # Internal start / stop (called under _lock)
@@ -331,13 +355,61 @@ class DictateController:
         return {"ok": True}
 
     def _stop_audio_no_paste(self) -> None:
-        """Stop audio and discard — no transcription, no paste. Runs in a daemon thread."""
+        """Stop audio and discard — no transcription, no paste. Runs in a daemon thread.
+
+        The overlay is dismissed directly in app.py (_on_dictate_cancel calls
+        AppHelper.callAfter(self._dictate_overlay.hide)), so on_paste_complete
+        must NOT be called here — it would trigger show_done_toast on a cancel.
+        """
         try:
             self._audio.stop()
         except Exception:
             logger.debug("DictateController: cancel audio stop failed", exc_info=True)
         finally:
             self._state = DictateState.IDLE
+            if self._dictate_temp_dir:
+                shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
+                self._dictate_temp_dir = None
+
+    def _stop_transcribe_clipboard_only(self) -> None:
+        """Stop recording, transcribe, copy to clipboard only — no paste. Runs in a daemon thread."""
+        try:
+            wav_path = self._audio.stop()
+            if not wav_path:
+                logger.warning("DictateController: no WAV path after stop — nothing to transcribe")
+                return
+
+            model = self._config.dictation_model
+            try:
+                result = self._model.transcribe(wav_path, model_size=model)
+                text = result.text.strip() if result.text else ""
+            except Exception as exc:
+                logger.error("DictateController: transcription failed: %s", exc)
+                if self._run_on_main:
+                    self._run_on_main(lambda _e=exc: self._notify_transcription_failed_on_main(_e))
+                else:
+                    _notify("Dictate failed", f"Transcription error: {exc}")
+                return
+
+            if not text:
+                logger.debug("DictateController: empty transcription result, nothing to copy")
+                # TODO: on empty/error, ideally show a different toast message; for now
+                # on_paste_complete always fires (overlay must close) and shows the "copied" toast.
+                return
+
+            text = _replacements.apply(
+                text,
+                self._config.replacement_rules,
+                "dictate",
+            )
+
+            try:
+                import pyperclip
+                pyperclip.copy(text)
+            except Exception as exc:
+                logger.error("DictateController: clipboard copy failed: %s", exc)
+        finally:
+            self._worker_running = False
             if self._dictate_temp_dir:
                 shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
                 self._dictate_temp_dir = None

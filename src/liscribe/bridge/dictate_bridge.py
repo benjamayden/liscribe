@@ -33,6 +33,27 @@ class DictateBridge:
     ) -> None:
         self._controller = controller
         self._on_open_settings_help = on_open_settings_help or (lambda _: None)
+        self._on_close_dialog: Callable[[], None] | None = None
+
+    def set_close_dialog(self, fn: Callable[[], None]) -> None:
+        """Register a callback that closes the Setup Required dialog. Called by app.py."""
+        self._on_close_dialog = fn
+
+    def open_system_prefs(self, pane: str) -> None:
+        """Open System Preferences to the given pane (e.g. Privacy_Accessibility). Called from Setup Required modal."""
+        try:
+            import subprocess
+            subprocess.Popen(["open", f"x-apple.systempreferences:{pane}"])
+        except Exception:
+            logger.debug("DictateBridge.open_system_prefs failed", exc_info=True)
+
+    def close_dialog(self) -> None:
+        """Close the Setup Required dialog. Called from 'Not now' button."""
+        if self._on_close_dialog:
+            try:
+                self._on_close_dialog()
+            except Exception:
+                logger.debug("DictateBridge.close_dialog failed", exc_info=True)
 
     def open_settings_help(self, anchor: str) -> None:
         """Open Settings panel to the given Help section (e.g. permissions). Used by Setup Required modal."""
@@ -67,3 +88,15 @@ class DictateBridge:
         except Exception:
             logger.debug("DictateBridge.get_state failed", exc_info=True)
             return "idle"
+
+    def stop_recording(self) -> dict:
+        """Stop recording via UI button — clipboard copy only, no paste.
+
+        Reserved for future HTML panel — not currently invoked from JS
+        (native overlay uses callback via doneAction_ / _on_dictate_done).
+        """
+        try:
+            return self._controller.request_stop_from_button()
+        except Exception:
+            logger.debug("DictateBridge.stop_recording failed", exc_info=True)
+            return {"ok": False}

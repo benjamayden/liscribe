@@ -52,6 +52,17 @@
             <span id="start-on-login-label">OFF</span>
           </label>
         </div>
+        <div class="section-label mt-16">Crash Recovery</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="crash-recovery">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="crash-recovery-label">OFF</span>
+          </label>
+        </div>
+        <div class="form-row-hint" id="crash-recovery-hint">
+          Auto-restart if liscribe crashes or is killed unexpectedly.
+        </div>
         <div class="section-label mt-16">Open transcripts with</div>
         <div class="form-row app-row">
           <div id="open-transcript-app-display" class="app-display">Default app</div>
@@ -315,6 +326,11 @@ created_at:       2026-01-01T12:00:00</pre>
     el('dictation-auto-enter-label').textContent = el('dictation-auto-enter').checked ? 'ON' : 'OFF';
     el('start-on-login').checked = config.start_on_login === true;
     el('start-on-login-label').textContent = el('start-on-login').checked ? 'ON' : 'OFF';
+    // Crash recovery status is not in config.json; query separately.
+    pywebview.api.get_crash_recovery_enabled().then(function(enabled) {
+      el('crash-recovery').checked = !!enabled;
+      el('crash-recovery-label').textContent = enabled ? 'ON' : 'OFF';
+    }).catch(function() {});
     const appName = config.open_transcript_app || 'default';
     el('open-transcript-app-display').textContent = appName === 'default' ? 'Default app' : appName;
     el('mic-label').value = config.mic_label || '';
@@ -631,6 +647,66 @@ created_at:       2026-01-01T12:00:00</pre>
         }
         row.appendChild(span2);
         list.appendChild(row);
+        if (key === 'input_monitoring' && !perms[key]) {
+          const guidance = document.createElement('div');
+          guidance.className = 'input-monitoring-guidance';
+
+          const guidanceText = document.createElement('p');
+          guidanceText.className = 'im-guidance-text';
+          guidanceText.appendChild(document.createTextNode('Open System Settings \u2192 Privacy & Security \u2192 Input Monitoring. Click +. In the file picker, press '));
+          const kbd = document.createElement('kbd');
+          kbd.textContent = '\u2318\u21E7G';
+          guidanceText.appendChild(kbd);
+          guidanceText.appendChild(document.createTextNode(' to type a path directly, then paste one of the paths below.'));
+          guidance.appendChild(guidanceText);
+
+          const pathsContainer = document.createElement('div');
+          pathsContainer.className = 'im-paths';
+          pathsContainer.id = 'im-paths';
+          const loadingSpan = document.createElement('span');
+          loadingSpan.className = 'loading-text';
+          loadingSpan.textContent = 'Loading paths\u2026';
+          pathsContainer.appendChild(loadingSpan);
+          guidance.appendChild(pathsContainer);
+
+          const openImBtn = document.createElement('button');
+          openImBtn.className = 'btn btn-sm btn-ghost';
+          openImBtn.id = 'btn-open-im-settings';
+          openImBtn.textContent = 'Open Input Monitoring Settings \u2192';
+          guidance.appendChild(openImBtn);
+
+          list.appendChild(guidance);
+
+          pywebview.api.get_python_paths().then(function(paths) {
+            const container = pathsContainer;
+            if (!container || !paths) return;
+            container.textContent = '';
+            const pathsToShow = [];
+            if (paths.executable) pathsToShow.push(paths.executable);
+            if (paths.real_path && paths.real_path !== paths.executable) {
+              pathsToShow.push(paths.real_path);
+            }
+            pathsToShow.forEach(function(p) {
+              const pathRow = document.createElement('div');
+              pathRow.className = 'im-path-row';
+              const pathSpan = document.createElement('span');
+              pathSpan.className = 'copyable-path';
+              pathSpan.textContent = p;
+              pathSpan.title = 'Click to copy';
+              pathSpan.addEventListener('click', function() {
+                navigator.clipboard.writeText(p);
+                pathSpan.classList.add('copied');
+                setTimeout(function() { pathSpan.classList.remove('copied'); }, 1500);
+              });
+              pathRow.appendChild(pathSpan);
+              container.appendChild(pathRow);
+            });
+          }).catch(function() {});
+
+          openImBtn.addEventListener('click', function() {
+            pywebview.api.open_system_settings('input_monitoring');
+          });
+        }
       });
     } catch (e) { console.error('get_permissions:', e); }
     try {
@@ -729,6 +805,17 @@ created_at:       2026-01-01T12:00:00</pre>
     const v = el('start-on-login').checked;
     saveConfigKey('start_on_login', v);
     el('start-on-login-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('crash-recovery').addEventListener('change', async function() {
+    const v = this.checked;
+    const res = await pywebview.api.set_crash_recovery_enabled(v);
+    if (!res || !res.ok) {
+      // Revert toggle on failure.
+      this.checked = !v;
+      el('crash-recovery-label').textContent = !v ? 'ON' : 'OFF';
+    } else {
+      el('crash-recovery-label').textContent = v ? 'ON' : 'OFF';
+    }
   });
   el('speaker-device-input').addEventListener('change', async function() {
     const name = (this.value || '').trim() || 'Multi-Output Device';

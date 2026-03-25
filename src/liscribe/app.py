@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import atexit
 import os
-import plistlib
-import shlex
 import subprocess
 import sys
 import threading
@@ -75,9 +73,15 @@ from liscribe.controllers.dictate_controller import (
 )
 from liscribe.controllers.onboarding_controller import OnboardingController
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
-from liscribe.controllers.transcribe_controller import TranscribeController
+from liscribe.controllers.transcribe_controller import TranscribeController, TranscribeState
 from liscribe.services.audio_service import AudioService
-from liscribe.services.config_service import ConfigService, _get_app_bundle_path
+from liscribe.services.config_service import (
+    ConfigService,
+    clear_clean_exit_marker,
+    is_crash_recovery_enabled,
+    spawn_crash_recovery_watchdog,
+    write_clean_exit_marker,
+)
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
 from liscribe.services.permissions_service import has_dictate_permissions
@@ -98,44 +102,6 @@ def _set_scribe_confirm_close(window: webview.Window, value: bool) -> None:
     """
     setattr(window, "confirm_close", value)
 
-
-LAUNCH_AGENT_LABEL = "com.liscribe.restart"
-
-
-def _schedule_restart_via_launchd(bundle: Path) -> None:
-    """Write a one-shot LaunchAgent plist that sleeps 2s, opens the app, then unloads itself.
-    The job runs under launchd so it survives when this process exits.
-    Uses bootstrap/bootout on macOS (load/unload are deprecated).
-    """
-    agents_dir = Path.home() / "Library" / "LaunchAgents"
-    agents_dir.mkdir(parents=True, exist_ok=True)
-    plist_path = agents_dir / f"{LAUNCH_AGENT_LABEL}.plist"
-    path_str = str(bundle)
-    uid = os.getuid()
-    domain = f"gui/{uid}"
-    script = f"sleep 2; open -a {shlex.quote(path_str)}; launchctl bootout {shlex.quote(domain)} {shlex.quote(LAUNCH_AGENT_LABEL)}"
-    plist = {
-        "Label": LAUNCH_AGENT_LABEL,
-        "ProgramArguments": ["/bin/sh", "-c", script],
-        "RunAtLoad": True,
-    }
-    try:
-        # Clear any stale job from a previous run that didn't unload
-        subprocess.run(
-            ["launchctl", "bootout", domain, LAUNCH_AGENT_LABEL],
-            capture_output=True,
-            timeout=5,
-        )
-        with open(plist_path, "wb") as f:
-            plistlib.dump(plist, f)
-        subprocess.run(
-            ["launchctl", "bootstrap", domain, str(plist_path)],
-            check=True,
-            capture_output=True,
-            timeout=5,
-        )
-    except Exception as exc:
-        logger.warning("Failed to schedule restart via launchd: %s", exc)
 
 
 if sys.platform != "darwin":
@@ -337,7 +303,7 @@ class LiscribeApp(rumps.App):
             model=model,
             config=config,
             can_dictate=has_dictate_permissions,
-            on_paste_complete=lambda: AppHelper.callAfter(self._dictate_overlay.hide),
+            on_paste_complete=lambda: AppHelper.callAfter(self._dictate_overlay.show_done_toast),
             run_on_main=AppHelper.callAfter,
         )
         self._dictate_bridge = DictateBridge(
@@ -392,6 +358,7 @@ class LiscribeApp(rumps.App):
             rumps.MenuItem("Dictate  ⌃⌃ / hold ⌃", callback=self.open_dictate),
             rumps.MenuItem("Transcribe", callback=self.open_transcribe),
             rumps.MenuItem("Settings", callback=self.open_settings),
+            rumps.MenuItem("Restart", callback=lambda _: self._schedule_restart()),
         ]
 
     # ------------------------------------------------------------------
@@ -520,8 +487,11 @@ class LiscribeApp(rumps.App):
 
         def _on_closed() -> None:
             if name == "scribe":
-                if self._scribe_ctrl.state == ControllerState.RECORDING:
+                if self._scribe_ctrl.state in (ControllerState.RECORDING, ControllerState.TRANSCRIBING):
                     self._scribe_ctrl.cancel()
+            if name == "transcribe":
+                if self._transcribe_ctrl.state == TranscribeState.TRANSCRIBING:
+                    self._transcribe_ctrl.cancel()
             self._panels.pop(name, None)
             # When the last dock panel closes, return focus to the app that had
             # it before we opened. Explicitly activating the previous app is
@@ -545,7 +515,7 @@ class LiscribeApp(rumps.App):
         if name == "scribe":
             window.localization = {
                 **window.localization,
-                "global.quitConfirmation": "Recording in progress\n\nGo back to recording, or leave and discard?",
+                "global.quitConfirmation": "Recording or transcription in progress\n\nGo back, or leave and discard?",
                 "global.quit": "Leave and discard",
                 "global.cancel": "Back",
             }
@@ -575,21 +545,15 @@ class LiscribeApp(rumps.App):
             js_api.set_window(window)
 
     def _schedule_restart(self) -> None:
-        """Quit and relaunch the app. Uses a launchd one-shot job when running as .app so the
-        restarter is not our child and survives when we exit.
-        """
-        bundle = _get_app_bundle_path()
-        if bundle:
-            _schedule_restart_via_launchd(bundle)
-        else:
-            # Dev mode: subprocess may be killed when we quit; launchd not used.
-            subprocess.Popen(
-                ["/bin/sh", "-c", "(sleep 2; exec \"$0\" -m liscribe ${1+\"$@\"}) &", sys.executable] + sys.argv[1:],
-                start_new_session=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        """Quit and relaunch the app after a short delay."""
+        write_clean_exit_marker()
+        subprocess.Popen(
+            ["/bin/sh", "-c", "(sleep 2; exec \"$0\" -m liscribe ${1+\"$@\"}) &", sys.executable] + sys.argv[1:],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().terminate_(None))
 
     # ------------------------------------------------------------------
@@ -681,11 +645,19 @@ class LiscribeApp(rumps.App):
                 ctrl,
                 self._config.dictation_hotkey_display,
                 self._on_dictate_cancel,
+                self._on_dictate_done_button,
             )
 
     def _on_dictate_cancel(self) -> None:
         """Cancel button pressed in the overlay: stop recording without pasting."""
         self._dictate_ctrl.handle_cancel()
+        # Hide the overlay immediately on cancel — do not wait for on_paste_complete,
+        # which now shows a toast (not appropriate after cancel).
+        AppHelper.callAfter(self._dictate_overlay.hide)
+
+    def _on_dictate_done_button(self) -> None:
+        """Done button pressed in overlay: stop recording, clipboard only."""
+        self._dictate_ctrl.request_stop_from_button()
 
     def _on_dictate_stop_if_recording(self) -> None:
         """Stop a toggle-mode recording on single ^ press. Does nothing when idle."""
@@ -700,6 +672,15 @@ class LiscribeApp(rumps.App):
 
     def _on_dictate_hold_end(self) -> None:
         self._on_dictate_trigger("handle_hold_end")
+
+    def _close_dictate_setup_dialog(self) -> None:
+        """Close the Setup Required dialog (called from 'Not now' bridge method)."""
+        w = self._panels.get("dictate")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not close dictate setup dialog: %s", exc)
 
     def _close_settings_panel(self) -> None:
         """Close the Settings panel (called from bridge when user clicks header close)."""
@@ -780,12 +761,16 @@ class LiscribeApp(rumps.App):
             except Exception:
                 self._panels.pop("dictate", None)
 
+        self._dictate_bridge.set_close_dialog(
+            lambda: AppHelper.callAfter(self._close_dictate_setup_dialog)
+        )
         window = webview.create_window(
             "Setup Required",
             url,
             width=460,
             height=320,
             resizable=False,
+            js_api=self._dictate_bridge,
         )
 
         def _on_closed() -> None:
@@ -928,6 +913,23 @@ def main() -> None:
     hotkey = HotkeyService(config)
 
     app = LiscribeApp(config=config, audio=audio, model=model, hotkey=hotkey)
+
+    # Crash recovery: watchdog subprocess restarts liscribe if it dies unexpectedly.
+    # Clean exits (Quit, Restart) write a marker file so the watchdog stays quiet.
+    clear_clean_exit_marker()
+    _crashed = False
+    _orig_excepthook = sys.excepthook
+
+    def _excepthook(t, v, tb):
+        nonlocal _crashed
+        _crashed = True
+        _orig_excepthook(t, v, tb)
+
+    sys.excepthook = _excepthook
+    atexit.register(lambda: write_clean_exit_marker() if not _crashed else None)
+
+    if is_crash_recovery_enabled():
+        spawn_crash_recovery_watchdog(os.getpid())
 
     hotkey.start(
         on_scribe=lambda: AppHelper.callAfter(app.open_scribe),

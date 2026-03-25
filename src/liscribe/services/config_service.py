@@ -20,6 +20,71 @@ START_ON_LOGIN_KEY = "start_on_login"
 
 _LAUNCHD_PLIST = Path.home() / "Library/LaunchAgents/com.liscribe.app.plist"
 
+_CLEAN_EXIT_MARKER = Path(_config.CONFIG_DIR) / "clean_exit"
+_CRASH_RECOVERY_ENABLED_MARKER = Path(_config.CONFIG_DIR) / "crash_recovery_enabled"
+
+
+def is_crash_recovery_enabled() -> bool:
+    """Return True if crash recovery watchdog is enabled."""
+    return _CRASH_RECOVERY_ENABLED_MARKER.exists()
+
+
+def enable_crash_recovery() -> None:
+    """Enable crash recovery by writing the enabled marker file."""
+    _CRASH_RECOVERY_ENABLED_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    _CRASH_RECOVERY_ENABLED_MARKER.touch()
+
+
+def disable_crash_recovery() -> None:
+    """Disable crash recovery by removing the enabled marker file."""
+    _CRASH_RECOVERY_ENABLED_MARKER.unlink(missing_ok=True)
+
+
+def write_clean_exit_marker() -> None:
+    """Write the clean exit marker so the watchdog does not restart after a clean quit."""
+    try:
+        _CLEAN_EXIT_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        _CLEAN_EXIT_MARKER.touch()
+    except Exception:
+        pass
+
+
+def clear_clean_exit_marker() -> None:
+    """Remove the clean exit marker at startup so a previous clean exit is forgotten."""
+    _CLEAN_EXIT_MARKER.unlink(missing_ok=True)
+
+
+def spawn_crash_recovery_watchdog(pid: int) -> None:
+    """Spawn a detached watchdog subprocess that restarts liscribe if it crashes.
+
+    The watchdog polls the given PID every 0.5s. When the process dies it waits
+    briefly for atexit to run, then checks for the clean exit marker. If the
+    marker is absent (crash / SIGKILL / unhandled exception) it relaunches
+    ``python -m liscribe`` after a 2-second delay.
+    """
+    script = f"""
+import os, sys, time, pathlib
+pid = {pid}
+marker = pathlib.Path({str(_CLEAN_EXIT_MARKER)!r})
+while True:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        break
+    time.sleep(0.5)
+time.sleep(0.2)
+if not marker.exists():
+    time.sleep(2)
+    os.execv({sys.executable!r}, [{sys.executable!r}, '-m', 'liscribe'])
+"""
+    subprocess.Popen(
+        [sys.executable, "-c", script],
+        start_new_session=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 
 def _get_app_bundle_path() -> Path | None:
     """If we are running inside a .app bundle, return its path; else None."""
