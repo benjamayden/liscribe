@@ -113,6 +113,9 @@ class SettingsBridge:
             "dictation_model": self._config.dictation_model,
             "speaker_device": self._config.speaker_device,
             "blackhole_device": self._config.blackhole_device,
+            "webhook_url": self._config.webhook_url,
+            "mic_label": self._config.mic_label,
+            "speaker_label": self._config.speaker_label,
         }
 
     def set_config(self, key: str, value: Any) -> None:

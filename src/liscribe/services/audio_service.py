@@ -98,6 +98,7 @@ class AudioService:
         """
         if self._session is None:
             return None
+        self._session._stream_ready.wait(timeout=5.0)
         self._session._stop_requested.set()
         if self._thread is not None:
             self._thread.join(timeout=10)

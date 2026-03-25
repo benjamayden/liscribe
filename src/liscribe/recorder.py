@@ -190,6 +190,7 @@ class RecordingSession:
         self._mic_stream: sd.InputStream | None = None
         self._speaker_stream: sd.InputStream | None = None
         self._stop_requested = threading.Event()
+        self._stream_ready = threading.Event()
         self._original_output: str | None = None
         self._start_time: float = 0.0
         self._mic_device_name: str = "unknown"
@@ -350,6 +351,7 @@ class RecordingSession:
             self._restore_audio_output()
             return None
 
+        self._stream_ready.set()
         self._start_time = time.time()
         mode = "mic + speaker" if self.speaker else "mic"
         print(f"Recording ({mode})... Mic: {dev_name} | {self.sample_rate}Hz {self.channels}ch")
@@ -370,12 +372,11 @@ class RecordingSession:
             signal.signal(signal.SIGINT, _handle_sigint)
 
         try:
-            while not self._stop_requested.is_set():
+            while not self._stop_requested.wait(timeout=0.5):
                 elapsed = time.time() - self._start_time
                 mins, secs = divmod(int(elapsed), 60)
                 hrs, mins = divmod(mins, 60)
                 print(f"\r  ● REC  {hrs:02d}:{mins:02d}:{secs:02d}", end="", flush=True)
-                time.sleep(0.5)
         finally:
             if threading.current_thread() is threading.main_thread() and original_sigint is not None:
                 signal.signal(signal.SIGINT, original_sigint)

@@ -8,9 +8,30 @@ Writes to result_file: OK:<md_path> or ERROR:<message>
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+def _post_webhook(url: str, payload: dict) -> None:
+    """Fire-and-forget HTTP POST of *payload* as JSON to *url*. Logs on failure."""
+    import urllib.request
+
+    try:
+        data = json.dumps(payload, separators=(",", ":")).encode()
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception as exc:
+        logger.warning("Webhook POST to %r failed: %s", url, exc)
 
 from liscribe.config import load_config
 from liscribe.notes import Note
@@ -202,6 +223,23 @@ def main() -> None:
         cleanup_audio(wav_path, all_md_paths)
 
     result_file.write_text(f"OK:{md_path}", encoding="utf-8")
+
+    webhook_url = cfg.get("webhook_url")
+    if webhook_url:
+        try:
+            md_text = Path(md_path).read_text(encoding="utf-8")
+        except Exception:
+            md_text = result.text or ""
+        _post_webhook(
+            webhook_url,
+            {
+                "workflow": "scribe",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "word_count": result.word_count,
+                "duration_seconds": round(result.duration, 1),
+                "text": md_text,
+            },
+        )
 
 
 if __name__ == "__main__":

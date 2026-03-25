@@ -42,6 +42,7 @@ ERROR_NO_MODEL = "no_model"
 class DictateState(str, Enum):
     IDLE = "idle"
     RECORDING = "recording"
+    TRANSCRIBING = "transcribing"
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +122,37 @@ def _notify(title: str, message: str) -> None:
         logger.debug("_notify failed: %s — %s", title, message, exc_info=True)
 
 
+def _post_webhook_dictate(
+    url: str, text: str, recording_start: float | None
+) -> None:
+    """Fire-and-forget POST of dictate result to webhook URL. Logs on failure."""
+    import json
+    import urllib.request
+
+    duration = (
+        round(time.monotonic() - recording_start, 1) if recording_start is not None else 0.0
+    )
+    payload = {
+        "workflow": "dictate",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "word_count": len(text.split()),
+        "duration_seconds": duration,
+        "text": text,
+    }
+    try:
+        data = json.dumps(payload, separators=(",", ":")).encode()
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception as exc:
+        logger.warning("Webhook POST to %r failed: %s", url, exc)
+
+
 # ---------------------------------------------------------------------------
 # Default permission check (replaced in tests via can_dictate= argument)
 # ---------------------------------------------------------------------------
@@ -169,7 +201,6 @@ class DictateController:
         self._start_time: float | None = None
         self._lock = threading.Lock()
         self._last_worker: threading.Thread | None = None
-        self._worker_running: bool = False
         self._target_bundle_id: str | None = None
         self._dictate_temp_dir: str | None = None
 
@@ -194,7 +225,7 @@ class DictateController:
         """Return 'recording' | 'processing' | 'idle' for panel UI."""
         if self._state == DictateState.RECORDING:
             return "recording"
-        if self._worker_running:
+        if self._state == DictateState.TRANSCRIBING:
             return "processing"
         return "idle"
 
@@ -246,10 +277,9 @@ class DictateController:
         """
         with self._lock:
             if self._state == DictateState.RECORDING:
-                self._state = DictateState.IDLE
+                self._state = DictateState.TRANSCRIBING
                 self._is_hold_mode = False
                 self._start_time = None
-                self._worker_running = True
                 worker = threading.Thread(
                     target=self._stop_audio_no_paste, daemon=True, name="dictate-cancel"
                 )
@@ -296,14 +326,15 @@ class DictateController:
         return {"ok": True}
 
     def _stop_and_paste_async(self) -> dict:
-        """Transition state to IDLE and launch the stop+transcribe+paste thread."""
-        self._state = DictateState.IDLE
+        """Transition state to TRANSCRIBING and launch the stop+transcribe+paste thread."""
+        self._state = DictateState.TRANSCRIBING
         self._is_hold_mode = False
+        recording_start = self._start_time
         self._start_time = None
-        self._worker_running = True
 
         worker = threading.Thread(
             target=self._stop_transcribe_paste,
+            args=(recording_start,),
             daemon=True,
             name="dictate-worker",
         )
@@ -318,7 +349,7 @@ class DictateController:
         except Exception:
             logger.debug("DictateController: cancel audio stop failed", exc_info=True)
         finally:
-            self._worker_running = False
+            self._state = DictateState.IDLE
             if self._dictate_temp_dir:
                 shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
                 self._dictate_temp_dir = None
@@ -370,7 +401,7 @@ class DictateController:
     # Background worker
     # ------------------------------------------------------------------
 
-    def _stop_transcribe_paste(self) -> None:
+    def _stop_transcribe_paste(self, recording_start: float | None = None) -> None:
         """Stop recording, transcribe, and paste. Runs in a daemon thread."""
         try:
             wav_path = self._audio.stop()
@@ -404,6 +435,14 @@ class DictateController:
                 "dictate",
             )
 
+            webhook_url = self._config.webhook_url
+            if webhook_url:
+                _post_webhook_dictate(
+                    webhook_url,
+                    text=text,
+                    recording_start=recording_start,
+                )
+
             target = self._target_bundle_id
             if self._run_on_main:
                 # AppKit, rumps, and pynput must run on main thread on macOS.
@@ -430,7 +469,7 @@ class DictateController:
                 else:
                     _notify("Dictated text copied to clipboard", text[:80])
         finally:
-            self._worker_running = False
+            self._state = DictateState.IDLE
             if self._dictate_temp_dir:
                 shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
                 self._dictate_temp_dir = None

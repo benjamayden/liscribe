@@ -296,6 +296,31 @@ class ConfigService:
     def rec_binary_path(self, path: str | None) -> None:
         self.set("rec_binary_path", path)
 
+    @property
+    def webhook_url(self) -> str | None:
+        v = self._values.get("webhook_url")
+        return str(v) if v else None
+
+    @webhook_url.setter
+    def webhook_url(self, url: str | None) -> None:
+        self.set("webhook_url", url or None)
+
+    @property
+    def mic_label(self) -> str:
+        return str(self._values.get("mic_label") or "in")
+
+    @mic_label.setter
+    def mic_label(self, label: str) -> None:
+        self.set("mic_label", label or "in")
+
+    @property
+    def speaker_label(self) -> str:
+        return str(self._values.get("speaker_label") or "out")
+
+    @speaker_label.setter
+    def speaker_label(self, label: str) -> None:
+        self.set("speaker_label", label or "out")
+
     # ------------------------------------------------------------------
     # Scribe-specific settings (Phase 4)
     # ------------------------------------------------------------------
