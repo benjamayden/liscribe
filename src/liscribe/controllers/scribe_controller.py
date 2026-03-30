@@ -485,14 +485,23 @@ class ScribeController:
 
         When called during a recording, immediately applies the change.
         Returns None on success, or an error message string on failure.
+        On failure, _speaker_enabled is reset to False so a subsequent
+        start() does not inadvertently request speaker mode.
         """
         self._speaker_enabled = enabled
         if self._state == ControllerState.RECORDING:
             if enabled:
-                return self._audio.enable_speaker_capture()
+                error = self._audio.enable_speaker_capture()
+                if error:
+                    self._speaker_enabled = False
+                return error
             else:
                 self._audio.disable_speaker_capture()
         return None
+
+    @property
+    def speaker_enabled(self) -> bool:
+        return self._speaker_enabled
 
     def set_save_path(self, path: str) -> None:
         """Override the save folder for this session."""

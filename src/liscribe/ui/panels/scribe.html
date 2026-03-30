@@ -550,6 +550,15 @@
       webhookState.has_webhook = !!state.has_webhook;
       webhookState.webhook_auto_send = !!state.webhook_auto_send;
 
+      // Restore speaker toggle to match actual session state (e.g. after a page reload
+      // where the session is already recording with speaker enabled).
+      const speakerOn = !!state.speaker_enabled;
+      el('speaker-toggle').checked = speakerOn;
+      el('speaker-label').textContent = speakerOn ? 'ON' : 'OFF';
+      if (!speakerOn) {
+        el('speaker-error').style.display = 'none';
+      }
+
       const mics = await pywebview.api.get_mics();
       populateMicSelect(mics, state.is_using_fallback_mic, state.current_mic || null);
 
