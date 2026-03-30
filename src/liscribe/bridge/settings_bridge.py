@@ -283,10 +283,23 @@ class SettingsBridge:
         return {"installed": ok, "message": msg}
 
     def check_multi_output_device(self, device_name: str) -> dict[str, Any]:
-        """Return multi-output device status for Deps tab. device_name must match Audio MIDI Setup."""
+        """Return multi-output device status for Deps tab. device_name must match Audio MIDI Setup.
+
+        When a device is found, ``exact_name`` is included in the response so
+        the UI can auto-correct the stored name to the exact string that
+        SwitchAudioSource requires (which uses CoreAudio names, same source as
+        sounddevice). A partial or differently-cased input may match here but
+        fail in set_output_device(), so showing and saving the exact name
+        prevents that mismatch.
+        """
         from liscribe import platform_setup
         ok, msg = platform_setup.check_multi_output_device(device_name)
-        return {"installed": ok, "message": msg}
+        result: dict[str, Any] = {"installed": ok, "message": msg}
+        if ok:
+            prefix = "Multi-Output Device found: "
+            if msg.startswith(prefix):
+                result["exact_name"] = msg[len(prefix):]
+        return result
 
     # ------------------------------------------------------------------
     # Replacements (Phase 10)

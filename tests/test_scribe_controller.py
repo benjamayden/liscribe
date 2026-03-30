@@ -347,6 +347,19 @@ class TestSessionConfig:
         err = controller.set_speaker(True)
         assert err == "BlackHole not found"
 
+    def test_set_speaker_resets_flag_on_failure(self, controller, audio_svc):
+        """_speaker_enabled must be False after a failed enable so the next start() does not request speaker."""
+        _force_recording(controller)
+        audio_svc.enable_speaker_capture.return_value = "Could not switch output"
+        controller.set_speaker(True)
+        assert controller._speaker_enabled is False
+
+    def test_set_speaker_keeps_flag_on_success(self, controller, audio_svc):
+        _force_recording(controller)
+        audio_svc.enable_speaker_capture.return_value = None
+        controller.set_speaker(True)
+        assert controller._speaker_enabled is True
+
     def test_switch_mic_mid_recording_calls_audio(self, controller, audio_svc):
         _force_recording(controller)
         controller.switch_mic("USB Mic")

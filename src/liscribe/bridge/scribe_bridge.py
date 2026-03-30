@@ -122,8 +122,14 @@ class ScribeBridge:
 
         Returns ``{"ok": True}`` on success, or ``{"ok": False, "error": "…"}``
         if the audio layer could not apply the change (e.g. BlackHole absent).
+        Catches unexpected exceptions so the JS caller always receives a dict
+        rather than a rejected promise.
         """
-        error = self._controller.set_speaker(enabled)
+        try:
+            error = self._controller.set_speaker(enabled)
+        except Exception as exc:
+            logger.error("toggle_speaker raised unexpectedly: %s", exc, exc_info=True)
+            return {"ok": False, "error": str(exc)}
         if error:
             return {"ok": False, "error": error}
         return {"ok": True}
@@ -229,6 +235,7 @@ class ScribeBridge:
             "save_path": to_display(self._controller.save_path),
             "selected_models": self._controller.selected_models,
             "current_mic": self._controller.current_mic,
+            "speaker_enabled": self._controller.speaker_enabled,
             "has_webhook": bool(self._config.webhook_url) if self._config else False,
             "webhook_auto_send": (self._config.webhook_auto_send_transcripts if self._config else False),
         }

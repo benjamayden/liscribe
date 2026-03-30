@@ -719,7 +719,19 @@ created_at:       2026-01-01T12:00:00</pre>
     if (speakerInput) speakerInput.value = speakerName;
     try {
       const mod = await pywebview.api.check_multi_output_device(speakerName) || {};
-      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
+      if (mod.installed) {
+        // If sounddevice found the device under a different exact name, auto-correct the stored
+        // value. SwitchAudioSource requires an exact match; a partial entry that passes the
+        // substring check here will silently fail when speaker capture is toggled.
+        if (mod.exact_name && mod.exact_name !== speakerName) {
+          if (speakerInput) speakerInput.value = mod.exact_name;
+          await saveConfigKey('speaker_device', mod.exact_name);
+          config.speaker_device = mod.exact_name;
+        }
+        el('speaker-device-status').textContent = '✓ Found';
+      } else {
+        el('speaker-device-status').textContent = '✗ Not found';
+      }
     } catch (e) { el('speaker-device-status').textContent = '—'; }
   }
 
@@ -817,24 +829,31 @@ created_at:       2026-01-01T12:00:00</pre>
       el('crash-recovery-label').textContent = v ? 'ON' : 'OFF';
     }
   });
-  el('speaker-device-input').addEventListener('change', async function() {
-    const name = (this.value || '').trim() || 'Multi-Output Device';
+  async function checkAndSaveSpeakerDevice(name) {
     await saveConfigKey('speaker_device', name);
     config.speaker_device = name;
     try {
       const mod = await pywebview.api.check_multi_output_device(name) || {};
-      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
+      if (mod.installed) {
+        if (mod.exact_name && mod.exact_name !== name) {
+          el('speaker-device-input').value = mod.exact_name;
+          await saveConfigKey('speaker_device', mod.exact_name);
+          config.speaker_device = mod.exact_name;
+        }
+        el('speaker-device-status').textContent = '✓ Found';
+      } else {
+        el('speaker-device-status').textContent = '✗ Not found';
+      }
     } catch (e) { el('speaker-device-status').textContent = '—'; }
+  }
+  el('speaker-device-input').addEventListener('change', async function() {
+    const name = (this.value || '').trim() || 'Multi-Output Device';
+    await checkAndSaveSpeakerDevice(name);
   });
   el('speaker-device-input').addEventListener('blur', async function() {
     const name = (this.value || '').trim() || 'Multi-Output Device';
     if (name === (config.speaker_device || 'Multi-Output Device')) return;
-    await saveConfigKey('speaker_device', name);
-    config.speaker_device = name;
-    try {
-      const mod = await pywebview.api.check_multi_output_device(name) || {};
-      el('speaker-device-status').textContent = mod.installed ? '✓ Found' : '✗ Not found';
-    } catch (e) { el('speaker-device-status').textContent = '—'; }
+    await checkAndSaveSpeakerDevice(name);
   });
   el('change-app').addEventListener('click', async function() {
     const result = await pywebview.api.pick_app();

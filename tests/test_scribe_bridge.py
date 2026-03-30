@@ -176,6 +176,27 @@ class TestToggleSpeaker:
         assert result["ok"] is False
         assert "BlackHole" in result["error"]
 
+    def test_returns_ok_false_when_set_speaker_raises(self, bridge, controller):
+        """Unhandled exceptions from enable_speaker_capture must not propagate — return ok:False."""
+        controller.set_speaker.side_effect = RuntimeError("unexpected audio error")
+        result = bridge.toggle_speaker(True)
+        assert result["ok"] is False
+        assert "error" in result
+
+
+class TestGetStateSpeakerEnabled:
+    def test_get_state_includes_speaker_enabled_false_by_default(self, bridge, controller):
+        """get_state() must include speaker_enabled so the UI can sync toggle state."""
+        controller.speaker_enabled = False
+        result = bridge.get_state()
+        assert "speaker_enabled" in result
+        assert result["speaker_enabled"] is False
+
+    def test_get_state_reflects_speaker_enabled_true(self, bridge, controller):
+        controller.speaker_enabled = True
+        result = bridge.get_state()
+        assert result["speaker_enabled"] is True
+
 
 # ---------------------------------------------------------------------------
 # toggle_model()
